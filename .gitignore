@@ -1,0 +1,7 @@
+/venv/
+/__pycache__/
+/data/
+/useful_scripts/test.json
+/useful_scripts/test.txt
+
+/test.py
