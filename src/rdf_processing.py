@@ -2,9 +2,12 @@ import json
 import os
 import time
 
-from llm_client import LLMClient
-import prompt_template
-from config import global_config
+import tqdm
+
+from .llm_client import LLMClient
+from . import prompt_template
+from .config import global_config
+from global_logger import logger
 
 
 def rdf_triple_extract(llm_client: LLMClient, paragraph: str, entities: list):
@@ -13,7 +16,7 @@ def rdf_triple_extract(llm_client: LLMClient, paragraph: str, entities: list):
         paragraph, entities=json.dumps(entities, ensure_ascii=False)
     )
     request_result = llm_client.send_chat_request(
-        global_config.entity_extract_llm_type, entity_extract_context
+        global_config["rdf_build"]["llm"]["model"], entity_extract_context
     )
 
     # 截取</think>标签后的内容
@@ -29,19 +32,25 @@ def rdf_triple_extract(llm_client: LLMClient, paragraph: str, entities: list):
         request_result = request_result[: request_result.rindex("}") + 1]
 
     entity_extract_result = json.loads(request_result)
+
+    for triple in entity_extract_result["triples"]:
+        if len(triple) != 3 or (
+            triple[0] is None or triple[1] is None or triple[2] is None
+        ):
+            raise Exception("RDF提取结果格式错误")
+
     return entity_extract_result
 
 
 def process_rdf_extract(
-    logger,
     llm_client: LLMClient,
     raw_data: dict,
     md5_set: set,
     entities_json: dict,
 ):
     # 该任务需要读取RDF的结果，所以需要读取rdf_output.json文件
-    logger.info("正在读取rdf_output.json文件")
-    rdf_file = global_config.rdf_file
+    logger.info("正在读取RDF文件")
+    rdf_file = global_config["persistence"]["rdf_data_path"]
     rdf_json = None
     if os.path.exists(rdf_file) is True:
         with open(rdf_file, "r", encoding="utf-8") as f:
@@ -55,22 +64,22 @@ def process_rdf_extract(
     # }
 
     if (rdf_json is None) or (len(rdf_json) == 0):
-        logger.error("rdf_output.csv文件为空/不存在/格式错误")
+        logger.error("RDF文件为空/不存在/格式错误")
         # 构建RDF
         logger.info("开始执行RDF构建任务")
         skip_ids = []
         rdf_json = {}
-        for item in raw_data:
+        for item in tqdm.tqdm(
+            md5_set, total=len(md5_set), desc="RDF构建任务进度：", leave=False
+        ):
             try_count = 0
             while try_count < 3:
                 try:
                     extracted_rdf = rdf_triple_extract(
-                        global_config,
                         llm_client,
                         raw_data[item],
                         entities_json[item],
                     )
-                    print(extracted_rdf)
                     rdf_json[item] = extracted_rdf["triples"]
                     break
                 except Exception as e:
@@ -90,11 +99,13 @@ def process_rdf_extract(
         if len(skip_ids) > 0:
             logger.warning("以下id的数据未能提取RDF，已跳过：{}".format(skip_ids))
     else:
-        logger.info("rdf_output.csv文件读取成功")
+        logger.info("RDF文件读取成功")
         # 检查是否有未提取的RDF
         update_flag = False
         skip_ids = []  # 存储跳过的id
-        for item in md5_set:
+        for item in tqdm.tqdm(
+            md5_set, total=len(md5_set), desc="RDF构建任务", leave=False
+        ):
             if item not in rdf_json:
                 update_flag = True
                 logger.info("发现未提取的文段，重新执行RDF提取任务")
@@ -102,12 +113,10 @@ def process_rdf_extract(
                 while try_count < 3:
                     try:
                         extracted_rdf = rdf_triple_extract(
-                            global_config,
                             llm_client,
                             raw_data[item],
                             entities_json[item],
                         )
-                        print(extracted_rdf)
                         rdf_json[item] = extracted_rdf["triples"]
                         break
                     except Exception as e:

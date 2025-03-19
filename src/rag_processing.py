@@ -1,22 +1,17 @@
+import json
+import os
 from typing import Dict, List
-from llm_client import LLMClient
-from open_ie import OpenIE
-from src.embedding_store import EmbeddingStore
-from config import global_config
-
-from main import logger
-
-PG_NAMESPACE = "paragraph"
-ENT_NAMESPACE = "entity"
-REL_NAMESPACE = "relation"
 
 
-class RAG:
-    def __init__(self, llm_client: LLMClient):
-        self.paragraphs_embedding_store = EmbeddingStore(llm_client, PG_NAMESPACE)
-        self.entities_embedding_store = EmbeddingStore(llm_client, ENT_NAMESPACE)
-        self.relation_embedding_store = EmbeddingStore(llm_client, REL_NAMESPACE)
+from .utils import get_md5
+from .embedding_store import EmbeddingManager
+from .config import ENT_NAMESPACE, PG_NAMESPACE, global_config
 
+from global_logger import logger
+
+
+class RAGManager:
+    def __init__(self):
         # 存储段落的hash值，用于去重
         self.stored_paragraph_hashes = set()
 
@@ -25,29 +20,44 @@ class RAG:
         # 实体出现次数统计，用于计算权重
         self.ent_appear_cnt = dict()
 
+    def save_to_file(self):
+        """保存到文件"""
+        # 保存RAG
+        # 确保目录存在
+        dir_path = global_config["persistence"]["rag_data_path"].rsplit("/", 1)[0]
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path, exist_ok=True)
+        with open(
+            global_config["persistence"]["rag_data_path"], "w", encoding="utf-8"
+        ) as f:
+            rag_data = dict(
+                {
+                    "stored_paragraph_hashes": list(self.stored_paragraph_hashes),
+                    "node_to_node": {
+                        f"{k[0]}->{k[1]}": v for k, v in self.node_to_node.items()
+                    },
+                    "ent_appear_cnt": self.ent_appear_cnt,
+                }
+            )
+            f.write(json.dumps(rag_data))
+
     def load_from_file(self):
-        """从文件加载RAG"""
-        raise NotImplementedError
+        """从文件加载"""
+        # 加载RAG
+        if not os.path.exists(global_config["persistence"]["rag_data_file"]):
+            raise Exception(
+                f"文件{global_config['persistence']['rag_data_file']}不存在"
+            )
+        with open(
+            global_config["persistence"]["rag_data_file"], "r", encoding="utf-8"
+        ) as f:
+            rag_data = json.load(f)
 
-    # 哈希去重
-    def _hash_deduplication(
-        self,
-        raw_paragraphs: Dict[str, str],
-        triple_list_data: Dict[str, List[List[str]]],
-    ):
-        """段落去重，并将索引换为对应段落的hash值"""
-        for idx, raw_paragraph in raw_paragraphs:
-            hash_value = hash(raw_paragraph)
-            if hash_value in self.stored_paragraph_hashes:
-                logger.info(f"删除重复段落，索引：<{idx}>")
-                del raw_paragraphs[idx]
-                del triple_list_data[idx]
-            else:
-                self.stored_paragraph_hashes.add(hash_value)
-                raw_paragraphs[hash_value] = raw_paragraphs.pop(idx)
-                triple_list_data[hash_value] = triple_list_data.pop(idx)
-
-        return raw_paragraphs, triple_list_data
+        self.stored_paragraph_hashes = set(rag_data["stored_paragraph_hashes"])
+        self.node_to_node = dict()
+        for k, v in rag_data["node_to_node"].items():
+            self.node_to_node[tuple(k.split("->"))] = v
+        self.ent_appear_cnt = rag_data["ent_appear_cnt"]
 
     def _build_edges_between_ent(self, triple_list_data: Dict[str, List[List[str]]]):
         """构建实体节点之间的关系，同时统计实体出现次数"""
@@ -55,8 +65,8 @@ class RAG:
             entity_set = set()
             for triple in triple_list:
                 # 一个triple就是一条边（同时构建双向联系）
-                hash_key1 = ENT_NAMESPACE + "-" + str(triple[0])
-                hash_key2 = ENT_NAMESPACE + "-" + str(triple[2])
+                hash_key1 = ENT_NAMESPACE + "-" + get_md5(triple[0])
+                hash_key2 = ENT_NAMESPACE + "-" + get_md5(triple[2])
                 self.node_to_node[(hash_key1, hash_key2)] = (
                     self.node_to_node.get((hash_key1, hash_key2), 0) + 1.0
                 )
@@ -74,9 +84,9 @@ class RAG:
 
     def _build_edges_between_ent_pg(self, triple_list_data: Dict[str, List[List[str]]]):
         """构建实体节点与文段节点之间的关系"""
-        for idx, triple_list in triple_list_data:
-            for triple in triple_list:
-                ent_hash_key = ENT_NAMESPACE + "-" + str(triple[0])
+        for idx in triple_list_data:
+            for triple in triple_list_data[idx]:
+                ent_hash_key = ENT_NAMESPACE + "-" + get_md5(triple[0])
                 pg_hash_key = PG_NAMESPACE + "-" + str(idx)
                 self.node_to_node[(pg_hash_key, ent_hash_key)] = (
                     self.node_to_node.get((pg_hash_key, ent_hash_key), 0) + 1.0
@@ -84,34 +94,14 @@ class RAG:
 
     def build_rag(
         self,
-        openie_obj: OpenIE,
+        triple_list_data: Dict[str, List[List[str]]],
+        embedding_manager: EmbeddingManager,
     ):
         """构建RAG"""
         logger.info("开始构建RAG")
 
-        # 重组织openie结果
-        # 索引的段落原文
-        raw_paragraphs = openie_obj.extract_raw_paragraph_dict()
-        # 索引的实体列表
-        entity_list_data = openie_obj.extract_entity_dict()
-        # 索引的三元组列表
-        triple_list_data = openie_obj.extract_triple_dict()
-
-        # 检查数据是否有异常
-        assert (
-            len(openie_obj.docs) > 0
-            and len(openie_obj.docs) == len(entity_list_data)
-            and len(openie_obj.docs) == len(triple_list_data)
-        ), "数据异常"
-
-        del entity_list_data, openie_obj
-
-        # 段落去重，并将索引换为对应段落的hash值
-        logger.info("正在进行段落去重与重索引")
-        raw_paragraphs, triple_list_data = self._hash_deduplication(
-            raw_paragraphs, triple_list_data
-        )
-        logger.info(f"段落去重完成，剩余待处理的段落数量：{len(raw_paragraphs)}")
+        for idx in triple_list_data:
+            self.stored_paragraph_hashes.add(str(idx))
 
         # 构建实体节点之间的关系，同时统计实体出现次数
         logger.info("正在构建RAG实体节点之间的关系，同时统计实体出现次数")
@@ -122,13 +112,6 @@ class RAG:
         logger.info("正在构建RAG实体节点与文段节点之间的关系")
         self._build_edges_between_ent_pg(triple_list_data)
 
-        """ 解除注释以启用Embedding库
-        logger.info("将段落编码存入Embedding库")
-        self.paragraphs_embedding_store.insert_strs(raw_paragraphs)
-        logger.info("将实体编码存入Embedding库")
-        self.entities_embedding_store.insert_strs(entities)
-        logger.info("将关系编码存入Embedding库")
-        self.relation_embedding_store.insert_strs([str(triple) for triple in triples])
-        """
-
         # 近义词扩展链接
+        logger.info("正在进行近义词扩展链接")
+        # 对每个实体节点，找到最相似的实体节点，建立扩展连接

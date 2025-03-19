@@ -2,16 +2,19 @@ import json
 import os
 import time
 
-from llm_client import LLMClient
-import prompt_template
-from config import global_config
+import tqdm
+
+from .llm_client import LLMClient
+from . import prompt_template
+from .config import global_config
+from global_logger import logger
 
 
 def _entity_extract(llm_client: LLMClient, paragraph: str):
     """对段落进行实体提取，返回提取出的实体列表（JSON格式）"""
     entity_extract_context = prompt_template.build_entity_extract_context(paragraph)
     request_result = llm_client.send_chat_request(
-        global_config.entity_extract_llm_type, entity_extract_context
+        global_config["entity_extract"]["llm"]["model"], entity_extract_context
     )
 
     # 截取</think>标签后的内容
@@ -30,11 +33,11 @@ def _entity_extract(llm_client: LLMClient, paragraph: str):
     return entity_extract_result
 
 
-def process_entity_extract(logger, llm_client: LLMClient, raw_data: dict, md5_set: set):
+def process_entity_extract(llm_client: LLMClient, raw_data: dict, md5_set: set):
     """处理实体提取任务"""
     # 读取entity_output.json文件
-    logger.info("正在读取entity_output.json文件")
-    entity_file = global_config.entity_file
+    logger.info("正在读取Entity文件")
+    entity_file = global_config["persistence"]["entity_data_path"]
     entity_json = None
     if os.path.exists(entity_file) is True:
         with open(entity_file, "r", encoding="utf-8") as f:
@@ -48,19 +51,18 @@ def process_entity_extract(logger, llm_client: LLMClient, raw_data: dict, md5_se
     # }
 
     if entity_json is None:
-        logger.warning("entity_output.json文件为空/不存在/格式错误")
+        logger.warning("Entity文件为空/不存在/格式错误")
         logger.info("开始执行实体提取任务")
         # 执行实体提取任务
         skip_ids = []  # 存储跳过的id
         entity_json = {}  # 存储实体提取的结果
-        for item in raw_data:
+        for item in tqdm.tqdm(
+            raw_data, total=len(raw_data), desc="实体提取任务进度:", leave=False
+        ):
             try_count = 0
             while try_count < 3:
                 try:
-                    extracted_entity_json = _entity_extract(
-                        global_config, llm_client, raw_data[item]
-                    )
-                    print(extracted_entity_json)
+                    extracted_entity_json = _entity_extract(llm_client, raw_data[item])
                     entity_json[item] = extracted_entity_json["named_entities"]
                     break
                 except Exception as e:
@@ -79,11 +81,13 @@ def process_entity_extract(logger, llm_client: LLMClient, raw_data: dict, md5_se
         if len(skip_ids) > 0:
             logger.warning("以下id的数据未能提取实体，已跳过：{}".format(skip_ids))
     else:
-        logger.info("entity_output.json文件读取成功")
+        logger.info("Entity文件读取成功")
         # 检查是否有未提取的实体
         update_flag = False
         skip_ids = []  # 存储跳过的id
-        for item in md5_set:
+        for item in tqdm.tqdm(
+            md5_set, total=len(md5_set), desc="实体提取检查进度:", leave=False
+        ):
             if item not in entity_json:
                 update_flag = True
                 logger.info("发现未提取的文段，重新执行实体提取任务")
@@ -91,9 +95,8 @@ def process_entity_extract(logger, llm_client: LLMClient, raw_data: dict, md5_se
                 while try_count < 3:
                     try:
                         extracted_entity_json = _entity_extract(
-                            global_config, llm_client, raw_data[item]
+                            llm_client, raw_data[item]
                         )
-                        print(extracted_entity_json)
                         entity_json[item] = extracted_entity_json["named_entities"]
                         break
                     except Exception as e:
