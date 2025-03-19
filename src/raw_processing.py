@@ -1,16 +1,19 @@
 import json
 import os
 
-from config import global_config
-from utils import get_md5
+from .config import global_config
+from .utils import get_md5
+from global_logger import logger
 
 
-def load_raw_data(logger) -> dict:
+def load_raw_data() -> dict:
     """加载import.json文件"""
     # 读取import.json文件
     logger.info("正在读取import.json文件")
-    if os.path.exists(global_config.import_file) is True:
-        with open(global_config.import_file, "r", encoding="utf-8") as f:
+    if os.path.exists(global_config["persistence"]["raw_data_path"]) is True:
+        with open(
+            global_config["persistence"]["raw_data_path"], "r", encoding="utf-8"
+        ) as f:
             import_json = json.loads(f.read())
     else:
         import_json = None
@@ -19,10 +22,10 @@ def load_raw_data(logger) -> dict:
     #       "The capital of China is Beijing. The capital of France is Paris.",
     # ]
     if import_json is None:
-        logger.error("import.json文件为空/不存在/格式错误")
+        logger.error("原始数据文件为空/不存在/格式错误")
         return
     else:
-        logger.info("import.json文件读取成功")
+        logger.info("原始数据文件读取成功")
         raw_data = {}
         md5_set = set()
         for item in import_json:

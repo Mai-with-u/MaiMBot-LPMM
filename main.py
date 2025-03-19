@@ -1,77 +1,124 @@
-import logging
-import json
-import os
 import sys
+from typing import Dict, List
 
-from .src.config import global_config
-from .src.llm_client import LLMClient
-from .src.entity_processing import process_entity_extract
-from .src.open_ie import OpenIE
-from .src.raw_processing import load_raw_data
-from .src.rdf_processing import process_rdf_extract
-from .src.rag_processing import RAG
+from src.config import PG_NAMESPACE, global_config
+from src.embedding_store import EmbeddingManager
+from src.llm_client import LLMClient
+from src.open_ie import get_openie_obj
+from src.rag_processing import RAGManager
+from global_logger import logger
+from src.utils import get_md5
 
-# Configure logger
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
+def hash_deduplicate_and_reindex(
+    raw_paragraphs: Dict[str, str],
+    triple_list_data: Dict[str, List[List[str]]],
+    stored_pg_hashes: set,
+    stored_paragraph_hashes: set,
+):
+    """Hash去重与重索引"""
+    # 保存去重后的段落
+    new_raw_paragraphs = dict()
+    # 保存新的三元组
+    new_triple_list_data = dict()
+
+    for _, (raw_paragraph, triple_list) in enumerate(
+        zip(raw_paragraphs.values(), triple_list_data.values())
+    ):
+        # 段落hash
+        paragraph_hash = get_md5(raw_paragraph)
+        if ((PG_NAMESPACE + "-" + paragraph_hash) in stored_pg_hashes) and (
+            paragraph_hash in stored_paragraph_hashes
+        ):
+            continue
+        new_raw_paragraphs[paragraph_hash] = raw_paragraph
+        new_triple_list_data[paragraph_hash] = triple_list
+
+    return new_raw_paragraphs, new_triple_list_data
 
 
 def main():
     logger.info("----启动Mai-HippoRAG2 Demo----\n")
 
     logger.info("创建LLM客户端")
-    llm_client = LLMClient(
-        global_config.llm_base_url, global_config.entity_extract_llm_key
+    llm_client_list = dict()
+
+    for key in global_config["llm_providers"]:
+        llm_client_list[key] = LLMClient(
+            global_config["llm_providers"][key]["base_url"],
+            global_config["llm_providers"][key]["api_key"],
+        )
+
+    # 获取OpenIE对象
+    openie_obj = get_openie_obj(llm_client_list)
+
+    # 重组织openie结果
+    # 索引的段落原文
+    raw_paragraphs = openie_obj.extract_raw_paragraph_dict()
+    # 索引的实体列表
+    entity_list_data = openie_obj.extract_entity_dict()
+    # 索引的三元组列表
+    triple_list_data = openie_obj.extract_triple_dict()
+
+    # 检查数据是否有异常
+    assert (
+        len(openie_obj.docs) > 0
+        and len(openie_obj.docs) == len(entity_list_data)
+        and len(openie_obj.docs) == len(triple_list_data)
+    ), "数据异常"
+
+    del entity_list_data, openie_obj
+
+    embed_manager = embed_manager = EmbeddingManager(
+        llm_client_list[global_config["embedding"]["provider"]]
+    )
+    logger.info("正在从文件加载Embedding库")
+    try:
+        embed_manager.load_from_file()
+    except Exception as e:
+        logger.error("从文件加载Embedding库时发生错误：{}".format(e))
+    logger.info("Embedding库加载完成")
+
+    rag_manager = RAGManager()
+    logger.info("正在从文件加载RAG")
+    try:
+        rag_manager.load_from_file()
+    except Exception as e:
+        logger.error("从文件加载RAG时发生错误：{}".format(e))
+    logger.info("RAG加载完成")
+
+    # 将索引换为对应段落的hash值
+    logger.info("正在进行段落去重与重索引")
+    raw_paragraphs, triple_list_data = hash_deduplicate_and_reindex(
+        raw_paragraphs,
+        triple_list_data,
+        embed_manager.stored_pg_hashes,
+        rag_manager.stored_paragraph_hashes,
     )
 
-    # 检查OpenIE文件是否存在
-    openie_obj = None
-    if os.path.exists(global_config.openie_file):
-        try:
-            with open(global_config.openie_file, "r", encoding="utf-8") as f:
-                openie_obj = json.loads(f.read())
-            openie_obj = OpenIE.from_dict(openie_obj)
-        except Exception as e:
-            logger.error("OpenIE文件存在错误：{}".format(e))
-            openie_obj = None
-
-    if openie_obj is not None:
-        logger.info("OpenIE文件已存在，跳过实体提取、RDF构建、RAG构建任务")
+    if len(raw_paragraphs) != 0:
+        # 获取嵌入并保存
+        logger.info(f"段落去重完成，剩余待处理的段落数量：{len(raw_paragraphs)}")
+        logger.info("开始Embedding")
+        embed_manager.store_pg_into_embedding(raw_paragraphs)
+        embed_manager.store_ent_into_embedding(triple_list_data)
+        embed_manager.store_rel_into_embedding(triple_list_data)
+        embed_manager.save_to_file()
+        logger.info("Embedding完成")
+        # 构建新段落的RAG
+        logger.info("开始构建RAG")
+        rag_manager.build_rag(triple_list_data)
+        rag_manager.save_to_file()
+        logger.info("RAG构建完成")
+        # 进行同义词连接
+        logger.info("开始同义词连接")
+        rag_manager.synonym_connect()
+        rag_manager.save_to_file()
+        logger.info("同义词连接完成")
     else:
-        logger.info(
-            "OpenIE文件为空/不存在/格式错误，开始执行实体提取、RDF构建、RAG构建任务"
-        )
+        logger.info("无新段落需要处理")
 
-        # 加载import.json文件
-        raw_data, md5_set = load_raw_data(logger)
-
-        # 加载实体提取结果
-        entities_json = process_entity_extract(logger, llm_client, raw_data, md5_set)
-
-        # 加载RDF结果
-        rdf_json = process_rdf_extract(
-            logger, llm_client, raw_data, md5_set, entities_json
-        )
-
-        # 转换并保存为OpenIE样式
-        logger.info("正在将数据保存为OpenIE格式")
-        openie_docs = []
-        for item in raw_data:
-            if item in entities_json and item in rdf_json:
-                openie_docs.append(
-                    {
-                        "idx": item,
-                        "passage": raw_data[item],
-                        "extracted_entities": entities_json[item],
-                        "extracted_triples": rdf_json[item],
-                    }
-                )
-        openie_obj = OpenIE.from_all_docs(openie_docs)
-        openie_obj.save_data_as_openie_format()
-        logger.info("OpenIE文件保存成功")
-
-    # 构建RAG
-    rag = RAG.build_rag(logger, llm_client, openie_obj)
+    return
 
     if global_config.qa:
         logger.info("开始QA:")

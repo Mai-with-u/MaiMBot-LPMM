@@ -1,4 +1,4 @@
-from llm_client import LLMMessage
+from .llm_client import LLMMessage
 
 entity_extract_system_prompt = """你是一个性能优异的实体提取系统。请从段落中提取出所有实体，并以JSON列表的形式输出。
 

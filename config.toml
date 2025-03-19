@@ -1,0 +1,35 @@
+[[llm_providers]]
+# LLM API 服务提供商，可配置多个
+name = "localhost"
+base_url = "http://192.168.1.9:8888/v1/"
+api_key = "lm_studio"
+
+[entity_extract.llm]
+# 设置用于实体提取的LLM模型
+provider = "localhost"                 # 服务提供商
+model = "deepseek-r1-distill-llama-8b" # 模型名称
+
+[rdf_build.llm]
+# 设置用于RDF构建的LLM模型
+provider = "localhost"                 # 服务提供商
+model = "deepseek-r1-distill-llama-8b" # 模型名称
+
+[embedding]
+# 设置用于文本嵌入的Embedding模型
+provider = "localhost"          # 服务提供商
+model = "text-embedding-bge-m3" # 模型名称
+
+[rag.params]
+# RAG参数配置
+synonym_search_top_k = 10 # 同义词搜索TopK
+synonym_threshold = 0.8   # 同义词阈值（相似度高于此阈值的词语会被认为是同义词）
+
+[persistence]
+# 持久化配置（存储中间数据，防止重复计算）
+raw_data_path = "data/import.json"                   # 原始数据路径
+entity_data_path = "data/entity_output.json"         # 实体数据路径
+rdf_data_path = "data/rdf_output.json"               # RDF数据路径
+openie_data_path = "data/openie.json"                # OpenIE数据路径
+embedding_data_dir = "data/embedding"                # 嵌入数据目录
+rag_data_path = "data/rag_output.json"               # RAG数据路径
+embed_index_path = "data/embedding/embed_index.json" # 嵌入索引路径
