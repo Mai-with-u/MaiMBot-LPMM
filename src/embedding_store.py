@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 import os
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 import tqdm
+import faiss
 
 from .llm_client import LLMClient
 from .config import ENT_NAMESPACE, PG_NAMESPACE, REL_NAMESPACE, global_config
@@ -51,8 +52,13 @@ class EmbeddingStore:
 
         self.store = dict()
 
+        self.faiss_index = None
+        self.idx2hash = None
+
     def _get_embedding(self, s: str) -> List[float]:
-        self.llm_client.send_embedding_request(global_config["embedding"]["model"], s)
+        return self.llm_client.send_embedding_request(
+            global_config["embedding"]["model"], s
+        )
 
     def batch_insert_strs(self, strs: List[str]) -> None:
         """向库中存入字符串"""
@@ -97,6 +103,47 @@ class EmbeddingStore:
                 row["hash"], row["embedding"], row["str"]
             )
         logger.info(f"{self.namespace}嵌入库加载成功")
+
+    def build_faiss_index(self) -> None:
+        """重新构建Faiss索引，以余弦相似度为度量"""
+        # 获取所有的embedding
+        array = []
+        self.idx2hash = dict()
+        for key in self.store:
+            array.append(self.store[key].embedding)
+            self.idx2hash[len(array) - 1] = key
+        embeddings = np.array(array, dtype=np.float32)
+        # L2归一化
+        faiss.normalize_L2(embeddings)
+        # 构建索引
+        self.faiss_index = faiss.IndexFlatIP(global_config["embedding"]["dimension"])
+        self.faiss_index.add(embeddings)
+
+    def search_top_k(self, query: List[float], k: int) -> List[Tuple[str, float]]:
+        """搜索最相似的k个项，以余弦相似度为度量
+        Args:
+            query: 查询的embedding
+            k: 返回的最相似的k个项
+        Returns:
+            result: 最相似的k个项的(hash, 余弦相似度)列表
+        """
+        if self.faiss_index is None:
+            raise Exception("Faiss索引尚未构建")
+        if self.idx2hash is None:
+            raise Exception("idx2hash映射尚未构建")
+
+        # L2归一化
+        faiss.normalize_L2(np.array([query], dtype=np.float32))
+        # 搜索
+        distances, indices = self.faiss_index.search(np.array([query]), k)
+        # 整理结果
+        indices = indices.flatten()
+        distances = distances.flatten()
+        result = []
+        for i in range(len(indices)):
+            result.append((self.idx2hash[indices[i]], distances[i]))
+
+        return result
 
 
 class EmbeddingManager:

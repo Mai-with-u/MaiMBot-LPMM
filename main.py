@@ -105,18 +105,24 @@ def main():
         embed_manager.store_rel_into_embedding(triple_list_data)
         embed_manager.save_to_file()
         logger.info("Embedding完成")
+        # Embedding-Faiss重索引
+        logger.info("正在构建Embedding向量索引")
+        embed_manager.paragraphs_embedding_store.build_faiss_index()
+        embed_manager.entities_embedding_store.build_faiss_index()
+        embed_manager.relation_embedding_store.build_faiss_index()
+        logger.info("向量索引构建完成")
         # 构建新段落的RAG
         logger.info("开始构建RAG")
-        rag_manager.build_rag(triple_list_data)
+        rag_manager.build_rag(triple_list_data, embed_manager)
         rag_manager.save_to_file()
         logger.info("RAG构建完成")
-        # 进行同义词连接
-        logger.info("开始同义词连接")
-        rag_manager.synonym_connect()
-        rag_manager.save_to_file()
-        logger.info("同义词连接完成")
     else:
         logger.info("无新段落需要处理")
+        logger.info("正在构建Embedding向量索引")
+        embed_manager.paragraphs_embedding_store.build_faiss_index()
+        embed_manager.entities_embedding_store.build_faiss_index()
+        embed_manager.relation_embedding_store.build_faiss_index()
+        logger.info("向量索引构建完成")
 
     return
 

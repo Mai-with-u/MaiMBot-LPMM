@@ -4,4 +4,5 @@ tqdm
 openai
 pandas
 pyarrow
+faiss
 ruff
