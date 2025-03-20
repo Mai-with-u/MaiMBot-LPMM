@@ -6,6 +6,10 @@ PG_NAMESPACE = "paragraph"
 ENT_NAMESPACE = "entity"
 REL_NAMESPACE = "relation"
 
+RAG_EDGE_NAMESPACE = "rag-edge"
+RAG_ENT_CNT_NAMESPACE = "rag-ent-cnt"
+RAG_PG_HASH_NAMESPACE = "rag-pg-hash"
+
 
 def _load_config(config, config_file_path):
     """读取TOML格式的配置文件"""
@@ -69,11 +73,12 @@ global_config = dict(
         "embedding": {
             "provider": "localhost",
             "model": "embed",
+            "dimension": 1024,
         },
         "rag": {
             "params": {
                 "synonym_search_top_k": 10,
-                "synonym_threshold": 0.8,
+                "synonym_threshold": 0.75,
             }
         },
         "persistence": {
@@ -82,8 +87,7 @@ global_config = dict(
             "rdf_data_path": "data/rdf.json",
             "openie_data_path": "data/openie.json",
             "embedding_data_dir": "data/embedding",
-            "rag_data_file": "data/rag.json",
-            "embed_index_path": "data/embedding/embedding.index",
+            "rag_data_dir": "data/rag",
         },
     }
 )

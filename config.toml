@@ -18,6 +18,7 @@ model = "deepseek-r1-distill-llama-8b" # 模型名称
 # 设置用于文本嵌入的Embedding模型
 provider = "localhost"          # 服务提供商
 model = "text-embedding-bge-m3" # 模型名称
+dimension = 1024                # 嵌入维度
 
 [rag.params]
 # RAG参数配置
@@ -31,5 +32,5 @@ entity_data_path = "data/entity_output.json"         # 实体数据路径
 rdf_data_path = "data/rdf_output.json"               # RDF数据路径
 openie_data_path = "data/openie.json"                # OpenIE数据路径
 embedding_data_dir = "data/embedding"                # 嵌入数据目录
-rag_data_path = "data/rag_output.json"               # RAG数据路径
+rag_data_dir = "data/rag"                            # RAG数据目录
 embed_index_path = "data/embedding/embed_index.json" # 嵌入索引路径
