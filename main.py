@@ -1,4 +1,5 @@
 import sys
+import time
 from typing import Dict, List
 
 from src.config import PG_NAMESPACE, global_config
@@ -100,16 +101,12 @@ def main():
         # 获取嵌入并保存
         logger.info(f"段落去重完成，剩余待处理的段落数量：{len(raw_paragraphs)}")
         logger.info("开始Embedding")
-        embed_manager.store_pg_into_embedding(raw_paragraphs)
-        embed_manager.store_ent_into_embedding(triple_list_data)
-        embed_manager.store_rel_into_embedding(triple_list_data)
+        embed_manager.store_new_data_set(raw_paragraphs, triple_list_data)
         embed_manager.save_to_file()
         logger.info("Embedding完成")
         # Embedding-Faiss重索引
-        logger.info("正在构建Embedding向量索引")
-        embed_manager.paragraphs_embedding_store.build_faiss_index()
-        embed_manager.entities_embedding_store.build_faiss_index()
-        embed_manager.relation_embedding_store.build_faiss_index()
+        logger.info("正在重新构建Embedding向量索引")
+        embed_manager.rebuild_faiss_index()
         logger.info("向量索引构建完成")
         # 构建新段落的RAG
         logger.info("开始构建RAG")
@@ -118,30 +115,70 @@ def main():
         logger.info("RAG构建完成")
     else:
         logger.info("无新段落需要处理")
-        logger.info("正在构建Embedding向量索引")
-        embed_manager.paragraphs_embedding_store.build_faiss_index()
-        embed_manager.entities_embedding_store.build_faiss_index()
-        embed_manager.relation_embedding_store.build_faiss_index()
-        logger.info("向量索引构建完成")
 
-    return
-
-    if global_config.qa:
-        logger.info("开始QA:")
+    logger.info("------------开始QA------------")
+    while True:
         print("请在此处输入问题，输入exit退出：", end="")
         sys.stdout.flush()
-        while True:
-            question = input()
-            if question == "exit":
-                break
-            # 检索知识库
-            # 生成回答
-            # context = prompt_template.build_qa_context(question, rag.get_knowledge(question))
-            # response = llm_client.send_chat_request()
-            # answer = response.choices[0].message.content
-            # print("回答：", answer)
-            print("请继续输入问题，输入exit退出：", end="")
-            sys.stdout.flush()
+        question = input()
+        if question == "exit":
+            break
+        if question == "":
+            continue
+
+        start_time = time.time()  # 计时：总用时计算
+        part_start_time = start_time  # 计时：部分用时计算
+
+        # 生成问题的Embedding
+        question_embedding = llm_client_list[
+            global_config["embedding"]["provider"]
+        ].send_embedding_request(global_config["embedding"]["model"], question)
+
+        logger.info(f"Embedding用时：{time.time() - part_start_time:.2f}s")
+        part_start_time = time.time()
+
+        # 根据问题Embedding查询Relation Embedding
+        relation_search_res = embed_manager.relation_embedding_store.search_top_k(
+            question_embedding, global_config["qa"]["params"]["relation_search_top_k"]
+        )
+        # 过滤阈值
+        threshold_filtered_res = []
+        for res in relation_search_res:
+            if res[1] < global_config["qa"]["params"]["relation_threshold"]:
+                continue
+            else:
+                triple = embed_manager.relation_embedding_store.store[res[0]].str
+                print(f"找到相关关系，相似度：{(res[1] * 100):.2f}%  -  {triple}")
+                triple = tuple(triple[1:-1].split(", "))  # 去掉前后的括号，拆分为三元组
+                threshold_filtered_res.append((triple, res[1]))
+
+        del relation_search_res
+
+        logger.info(f"关系查询用时：{time.time() - part_start_time:.2f}s")
+        part_start_time = time.time()
+
+        # TODO: 使用LLM过滤三元组结果
+        # logger.info(f"LLM过滤三元组用时：{time.time() - part_start_time:.2f}s")
+        # part_start_time = time.time()
+
+        if len(threshold_filtered_res) == 0:
+            logger.info("未找到相关关系，将进行密集文段检索（DPR）")
+            # TODO: 使用DPR检索
+            logger.info(f"DPR检索用时：{time.time() - part_start_time:.2f}s")
+            part_start_time = time.time()
+            continue
+        else:
+            logger.info("找到相关关系，将使用RAG进行检索")
+            # 使用RAG检索
+            # result = rag_manager.rag_search_and_pr(question, threshold_filtered_res)
+            logger.info(f"RAG检索用时：{time.time() - part_start_time:.2f}s")
+            part_start_time = time.time()
+
+        # TODO: 生成QA上下文，交给LLM进行QA
+        # context = prompt_template.build_qa_context(question, rag.get_knowledge(question))
+        # response = llm_client.send_chat_request()
+        # answer = response.choices[0].message.content
+        # print("回答：", answer)
 
 
 if __name__ == "__main__":

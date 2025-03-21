@@ -35,6 +35,9 @@ def _load_config(config, config_file_path):
     if "rag" in file_config:
         config["rag"] = file_config["rag"]
 
+    if "qa" in file_config:
+        config["qa"] = file_config["qa"]
+
     if "persistence" in file_config:
         config["persistence"] = file_config["persistence"]
 
@@ -79,6 +82,12 @@ global_config = dict(
             "params": {
                 "synonym_search_top_k": 10,
                 "synonym_threshold": 0.75,
+            }
+        },
+        "qa": {
+            "params": {
+                "relation_search_top_k": 10,
+                "relation_threshold": 0.75,
             }
         },
         "persistence": {

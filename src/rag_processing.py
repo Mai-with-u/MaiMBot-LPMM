@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pandas as pd
 import tqdm
@@ -191,6 +191,7 @@ class RAGManager:
         """构建RAG"""
         logger.info("开始构建RAG")
 
+        # 记录已处理（存储）的段落hash
         for idx in triple_list_data:
             self.stored_paragraph_hashes.add(str(idx))
 
@@ -204,7 +205,6 @@ class RAGManager:
         self._build_edges_between_ent_pg(triple_list_data)
 
         # 近义词扩展链接
-        logger.info("正在进行近义词扩展链接")
         # 对每个实体节点，找到最相似的实体节点，建立扩展连接
-
+        logger.info("正在进行近义词扩展链接")
         self._synonym_connect(triple_list_data, embedding_manager)
