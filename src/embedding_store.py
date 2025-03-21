@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 import os
 from typing import Dict, List, Tuple
 
@@ -48,7 +49,9 @@ class EmbeddingStore:
         self.namespace = namespace
         self.llm_client = llm_client
         self.dir = dir_path
-        self.file_path = dir_path + "/" + namespace + ".parquet"
+        self.embedding_file_path = dir_path + "/" + namespace + ".parquet"
+        self.index_file_path = dir_path + "/" + namespace + ".index"
+        self.idx2hash_file_path = dir_path + "/" + namespace + "_i2h.json"
 
         self.store = dict()
 
@@ -78,31 +81,69 @@ class EmbeddingStore:
     def save_to_file(self) -> None:
         """保存到文件"""
         data = []
-        logger.info(f"正在保存{self.namespace}嵌入库到文件{self.file_path}")
+        logger.info(f"正在保存{self.namespace}嵌入库到文件{self.embedding_file_path}")
         for item in self.store.values():
             data.append(item.to_dict())
         data_frame = pd.DataFrame(data)
 
         if not os.path.exists(self.dir):
             os.makedirs(self.dir, exist_ok=True)
-        if not os.path.exists(self.file_path):
-            open(self.file_path, "w").close()
+        if not os.path.exists(self.embedding_file_path):
+            open(self.embedding_file_path, "w").close()
 
-        data_frame.to_parquet(self.file_path, engine="pyarrow", index=False)
+        data_frame.to_parquet(self.embedding_file_path, engine="pyarrow", index=False)
         logger.info(f"{self.namespace}嵌入库保存成功")
+
+        if self.faiss_index is not None and self.idx2hash is not None:
+            logger.info(
+                f"正在保存{self.namespace}嵌入库的FaissIndex到文件{self.index_file_path}"
+            )
+            faiss.write_index(self.faiss_index, self.index_file_path)
+            logger.info(f"{self.namespace}嵌入库的FaissIndex保存成功")
+            logger.info(
+                f"正在保存{self.namespace}嵌入库的idx2hash映射到文件{self.idx2hash_file_path}"
+            )
+            with open(self.idx2hash_file_path, "w") as f:
+                json.dump(self.idx2hash, f)
+            logger.info(f"{self.namespace}嵌入库的idx2hash映射保存成功")
 
     def load_from_file(self) -> None:
         """从文件中加载"""
-        if not os.path.exists(self.file_path):
-            raise Exception(f"文件{self.file_path}不存在")
+        if not os.path.exists(self.embedding_file_path):
+            raise Exception(f"文件{self.embedding_file_path}不存在")
 
-        logger.info(f"正在从文件{self.file_path}中加载{self.namespace}嵌入库")
-        data_frame = pd.read_parquet(self.file_path, engine="pyarrow")
+        logger.info(f"正在从文件{self.embedding_file_path}中加载{self.namespace}嵌入库")
+        data_frame = pd.read_parquet(self.embedding_file_path, engine="pyarrow")
         for _, row in tqdm.tqdm(data_frame.iterrows(), total=len(data_frame)):
             self.store[row["hash"]] = EmbeddingStoreItem(
                 row["hash"], row["embedding"], row["str"]
             )
         logger.info(f"{self.namespace}嵌入库加载成功")
+
+        try:
+            if os.path.exists(self.index_file_path):
+                logger.info(
+                    f"正在从文件{self.index_file_path}中加载{self.namespace}嵌入库的FaissIndex"
+                )
+                self.faiss_index = faiss.read_index(self.index_file_path)
+                logger.info(f"{self.namespace}嵌入库的FaissIndex加载成功")
+            else:
+                raise Exception(f"文件{self.index_file_path}不存在")
+            if os.path.exists(self.idx2hash_file_path):
+                logger.info(
+                    f"正在从文件{self.idx2hash_file_path}中加载{self.namespace}嵌入库的idx2hash映射"
+                )
+                with open(self.idx2hash_file_path, "r") as f:
+                    self.idx2hash = json.load(f)
+                logger.info(f"{self.namespace}嵌入库的idx2hash映射加载成功")
+            else:
+                raise Exception(f"文件{self.idx2hash_file_path}不存在")
+        except Exception as e:
+            logger.error(f"加载{self.namespace}嵌入库的FaissIndex时发生错误：{e}")
+            logger.warning("正在重建Faiss索引")
+            self.build_faiss_index()
+            logger.info(f"{self.namespace}嵌入库的FaissIndex重建成功")
+            self.save_to_file()
 
     def build_faiss_index(self) -> None:
         """重新构建Faiss索引，以余弦相似度为度量"""
@@ -111,7 +152,7 @@ class EmbeddingStore:
         self.idx2hash = dict()
         for key in self.store:
             array.append(self.store[key].embedding)
-            self.idx2hash[len(array) - 1] = key
+            self.idx2hash[str(len(array) - 1)] = key
         embeddings = np.array(array, dtype=np.float32)
         # L2归一化
         faiss.normalize_L2(embeddings)
@@ -141,7 +182,7 @@ class EmbeddingStore:
         distances = distances.flatten()
         result = []
         for i in range(len(indices)):
-            result.append((self.idx2hash[indices[i]], distances[i]))
+            result.append((self.idx2hash[str(int(indices[i]))], float(distances[i])))
 
         return result
 
@@ -165,11 +206,11 @@ class EmbeddingManager:
         )
         self.stored_pg_hashes = set()
 
-    def store_pg_into_embedding(self, raw_paragraphs: Dict[str, str]):
+    def _store_pg_into_embedding(self, raw_paragraphs: Dict[str, str]):
         """将段落编码存入Embedding库"""
         self.paragraphs_embedding_store.batch_insert_strs(raw_paragraphs.values())
 
-    def store_ent_into_embedding(self, triple_list_data: Dict[str, List[List[str]]]):
+    def _store_ent_into_embedding(self, triple_list_data: Dict[str, List[List[str]]]):
         """将实体编码存入Embedding库"""
         entities = set()
         for triple_list in triple_list_data.values():
@@ -178,7 +219,7 @@ class EmbeddingManager:
                 entities.add(triple[2])
         self.entities_embedding_store.batch_insert_strs(list(entities))
 
-    def store_rel_into_embedding(self, triple_list_data: Dict[str, List[List[str]]]):
+    def _store_rel_into_embedding(self, triple_list_data: Dict[str, List[List[str]]]):
         """将关系编码存入Embedding库"""
         graph_triples = []  # a list of unique relation triple (in tuple) from all chunks
         for triples in triple_list_data.values():
@@ -196,8 +237,24 @@ class EmbeddingManager:
         # 从段落库中获取已存储的hash
         self.stored_pg_hashes = set(self.paragraphs_embedding_store.store.keys())
 
+    def store_new_data_set(
+        self,
+        raw_paragraphs: Dict[str, str],
+        triple_list_data: Dict[str, List[List[str]]],
+    ):
+        """存储新的数据集"""
+        self._store_pg_into_embedding(raw_paragraphs)
+        self._store_ent_into_embedding(triple_list_data)
+        self._store_rel_into_embedding(triple_list_data)
+
     def save_to_file(self):
         """保存到文件"""
         self.paragraphs_embedding_store.save_to_file()
         self.entities_embedding_store.save_to_file()
         self.relation_embedding_store.save_to_file()
+
+    def rebuild_faiss_index(self):
+        """重建Faiss索引（请在添加新数据后调用）"""
+        self.paragraphs_embedding_store.build_faiss_index()
+        self.entities_embedding_store.build_faiss_index()
+        self.relation_embedding_store.build_faiss_index()

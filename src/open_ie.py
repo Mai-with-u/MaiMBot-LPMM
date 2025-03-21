@@ -116,10 +116,10 @@ def get_openie_obj(llm_client_list: Dict[str, LLMClient]) -> OpenIE:
             openie_obj = None
 
     if openie_obj is not None:
-        logger.info("OpenIE文件已存在，跳过实体提取、RDF构建、RAG构建任务")
+        logger.info("OpenIE文件已存在，跳过实体提取、RDF提取任务")
     else:
         logger.info(
-            "OpenIE文件为空/不存在/格式错误，开始执行实体提取、RDF构建、RAG构建任务"
+            "OpenIE文件为空/不存在/格式错误，开始执行实体提取、RDF提取"
         )
 
         # 加载import.json文件

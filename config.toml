@@ -25,6 +25,11 @@ dimension = 1024                # 嵌入维度
 synonym_search_top_k = 10 # 同义词搜索TopK
 synonym_threshold = 0.8   # 同义词阈值（相似度高于此阈值的词语会被认为是同义词）
 
+[qa.params]
+# QA参数配置
+relation_search_top_k = 10 # 关系搜索TopK
+relation_threshold = 0.5   # 关系阈值（相似度高于此阈值的关系会被认为是相关的关系）
+
 [persistence]
 # 持久化配置（存储中间数据，防止重复计算）
 raw_data_path = "data/import.json"                   # 原始数据路径
