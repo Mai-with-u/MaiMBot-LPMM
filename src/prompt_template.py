@@ -48,15 +48,18 @@ def build_rdf_triple_extract_context(paragraph: str, entities: str) -> str:
     return messages
 
 
-qa_system_prompt = """你是一个性能优异的QA系统。请根据给定的问题，从给定的知识库中筛选与问题有关的要点，并作出回答。"""
+qa_system_prompt = """你是一个性能优异的QA系统。请根据给定的问题和一些可能对你有帮助的信息作出回答。"""
 
 
 def build_qa_context(question: str, knowledge: list[(str, str, str)]) -> str:
     messages = []
     messages.append(LLMMessage("system", qa_system_prompt).to_dict())
+    knowledge = "\n".join(
+        [f"{i + 1}. 相关性：{k[0]}\n{k[1]}" for i, k in enumerate(knowledge)]
+    )
     messages.append(
         LLMMessage(
-            "user", f"问题：\n{question}\n\n你所掌握的知识要点：\n{knowledge}"
+            "user", f"问题：\n{question}\n\n可能有帮助的信息：\n{knowledge}"
         ).to_dict()
     )
     return messages
