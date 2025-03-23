@@ -3,6 +3,7 @@ import time
 from typing import Dict, List
 import igraph as ig
 
+from src import prompt_template
 from src.config import PG_NAMESPACE, global_config
 from src.embedding_store import EmbeddingManager
 from src.llm_client import LLMClient
@@ -40,7 +41,7 @@ def hash_deduplicate_and_reindex(
 
 
 def main():
-    logger.info("----启动Mai-HippoRAG2 Demo----\n")
+    logger.info("----启动Mai-LPMM Demo----\n")
 
     logger.info("创建LLM客户端")
     llm_client_list = dict()
@@ -195,11 +196,28 @@ def main():
             raw_paragraph = embed_manager.paragraphs_embedding_store.store[res[0]].str
             print(f"找到相关文段，相关系数：{res[1]:.8f}\n{raw_paragraph}\n\n")
 
-        # TODO: 生成QA上下文，交给LLM进行QA
-        # context = prompt_template.build_qa_context(question, rag.get_knowledge(question))
-        # response = llm_client.send_chat_request()
-        # answer = response.choices[0].message.content
-        # print("回答：", answer)
+        knowledge = [
+            (embed_manager.paragraphs_embedding_store.store[res[0]].str, res[1])
+            for res in result
+        ]
+
+        # 将检索结果和问题发送给LLM，获取答案
+
+        # 构造上下文
+
+        context = prompt_template.build_qa_context(question, knowledge)
+        ret = llm_client_list[global_config["qa"]["llm"]["provider"]].send_chat_request(
+            global_config["qa"]["llm"]["model"], context
+        )
+
+        # 去掉头部的 <think> 标签
+        ret = ret.split("<think>")[-1]
+        ret = ret.split("</think>")
+        print(f"思考：{ret[0]}\n回答：{ret[1]}\n")
+
+        logger.info(f"总用时：{time.time() - start_time:.2f}s")
+
+    logger.info("----结束Mai-LPMM Demo----")
 
 
 if __name__ == "__main__":

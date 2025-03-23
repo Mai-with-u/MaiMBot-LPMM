@@ -93,7 +93,11 @@ global_config = dict(
                 "ent_filter_top_k": 10,
                 "ppr_damping": 0.8,
                 "res_top_k": 10,
-            }
+            },
+            "llm": {
+                "provider": "localhost",
+                "model": "qa",
+            },
         },
         "persistence": {
             "raw_data_path": "data/raw.json",
