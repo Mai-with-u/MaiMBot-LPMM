@@ -6,7 +6,7 @@ PG_NAMESPACE = "paragraph"
 ENT_NAMESPACE = "entity"
 REL_NAMESPACE = "relation"
 
-RAG_EDGE_NAMESPACE = "rag-edge"
+RAG_GRAPH_NAMESPACE = "rag-graph"
 RAG_ENT_CNT_NAMESPACE = "rag-ent-cnt"
 RAG_PG_HASH_NAMESPACE = "rag-pg-hash"
 
@@ -88,6 +88,11 @@ global_config = dict(
             "params": {
                 "relation_search_top_k": 10,
                 "relation_threshold": 0.75,
+                "paragraph_search_top_k": 10,
+                "paragraph_node_weight": 0.05,
+                "ent_filter_top_k": 10,
+                "ppr_damping": 0.8,
+                "res_top_k": 10,
             }
         },
         "persistence": {
