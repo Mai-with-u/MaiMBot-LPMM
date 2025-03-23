@@ -178,11 +178,13 @@ class EmbeddingStore:
         # 搜索
         distances, indices = self.faiss_index.search(np.array([query]), k)
         # 整理结果
-        indices = indices.flatten()
-        distances = distances.flatten()
-        result = []
-        for i in range(len(indices)):
-            result.append((self.idx2hash[str(int(indices[i]))], float(distances[i])))
+        indices = list(indices.flatten())
+        distances = list(distances.flatten())
+        result = [
+            (self.idx2hash[str(int(idx))], float(sim))
+            for (idx, sim) in zip(indices, distances)
+            if idx in range(len(self.idx2hash))
+        ]
 
         return result
 

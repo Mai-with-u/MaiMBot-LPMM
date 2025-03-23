@@ -1,6 +1,7 @@
 import sys
 import time
 from typing import Dict, List
+import igraph as ig
 
 from src.config import PG_NAMESPACE, global_config
 from src.embedding_store import EmbeddingManager
@@ -116,11 +117,14 @@ def main():
     else:
         logger.info("无新段落需要处理")
 
+    # 将RAG图输出到svg文件
+    ig.plot(rag_manager.graph, bbox=(0, 0, 1920, 1080)).save("RAG.png")
+
     logger.info("------------开始QA------------")
     while True:
         print("请在此处输入问题，输入exit退出：", end="")
         sys.stdout.flush()
-        question = input()
+        question = input().strip()
         if question == "exit":
             break
         if question == "":
@@ -142,37 +146,54 @@ def main():
             question_embedding, global_config["qa"]["params"]["relation_search_top_k"]
         )
         # 过滤阈值
-        threshold_filtered_res = []
-        for res in relation_search_res:
-            if res[1] < global_config["qa"]["params"]["relation_threshold"]:
-                continue
-            else:
-                triple = embed_manager.relation_embedding_store.store[res[0]].str
-                print(f"找到相关关系，相似度：{(res[1] * 100):.2f}%  -  {triple}")
-                triple = tuple(triple[1:-1].split(", "))  # 去掉前后的括号，拆分为三元组
-                threshold_filtered_res.append((triple, res[1]))
+        # 考虑动态阈值：当存在显著数值差异的结果时，保留显著结果；否则，保留所有结果
+        relation_search_res = [
+            (
+                tuple(
+                    embed_manager.relation_embedding_store.store[res[0]]
+                    .str[1:-1]
+                    .split(", ")
+                ),
+                res[1],
+            )
+            for res in relation_search_res
+            if res[1] >= global_config["qa"]["params"]["relation_threshold"]
+        ]
 
-        del relation_search_res
-
-        logger.info(f"关系查询用时：{time.time() - part_start_time:.2f}s")
+        logger.info(f"关系检索用时：{time.time() - part_start_time:.2f}s")
         part_start_time = time.time()
+
+        for res in relation_search_res:
+            print(f"找到相关关系，相似度：{(res[1] * 100):.2f}%  -  {res[0]}")
 
         # TODO: 使用LLM过滤三元组结果
         # logger.info(f"LLM过滤三元组用时：{time.time() - part_start_time:.2f}s")
         # part_start_time = time.time()
 
-        if len(threshold_filtered_res) == 0:
-            logger.info("未找到相关关系，将进行密集文段检索（DPR）")
-            # TODO: 使用DPR检索
-            logger.info(f"DPR检索用时：{time.time() - part_start_time:.2f}s")
-            part_start_time = time.time()
-            continue
-        else:
+        paragraph_search_res = embed_manager.paragraphs_embedding_store.search_top_k(
+            question_embedding, global_config["qa"]["params"]["paragraph_search_top_k"]
+        )
+
+        logger.info(f"文段检索用时：{time.time() - part_start_time:.2f}s")
+        part_start_time = time.time()
+
+        if len(relation_search_res) != 0:
             logger.info("找到相关关系，将使用RAG进行检索")
             # 使用RAG检索
-            # result = rag_manager.rag_search_and_pr(question, threshold_filtered_res)
+            result = rag_manager.rag_search_and_pr(
+                relation_search_res, paragraph_search_res
+            )
             logger.info(f"RAG检索用时：{time.time() - part_start_time:.2f}s")
             part_start_time = time.time()
+        else:
+            logger.info("未找到相关关系，将使用文段检索结果")
+            result = paragraph_search_res
+
+        result = result[: global_config["qa"]["params"]["res_top_k"]]
+
+        for res in result:
+            raw_paragraph = embed_manager.paragraphs_embedding_store.store[res[0]].str
+            print(f"找到相关文段，相关系数：{res[1]:.8f}\n{raw_paragraph}\n\n")
 
         # TODO: 生成QA上下文，交给LLM进行QA
         # context = prompt_template.build_qa_context(question, rag.get_knowledge(question))
