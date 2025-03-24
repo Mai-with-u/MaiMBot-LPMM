@@ -48,7 +48,9 @@ def build_rdf_triple_extract_context(paragraph: str, entities: str) -> str:
     return messages
 
 
-qa_system_prompt = """你是一个性能优异的QA系统。请根据给定的问题和一些可能对你有帮助的信息作出回答。"""
+qa_system_prompt = (
+    """你是一个性能优异的QA系统。请根据给定的问题和一些可能对你有帮助的信息作出回答。"""
+)
 
 
 def build_qa_context(question: str, knowledge: list[(str, str, str)]) -> str:

@@ -8,7 +8,7 @@ import tqdm
 import igraph as ig
 
 
-from .utils import get_md5
+from .utils import get_sha256
 from .embedding_store import EmbeddingManager, EmbeddingStoreItem
 from .config import (
     ENT_NAMESPACE,
@@ -22,13 +22,13 @@ from .config import (
 from global_logger import logger
 
 
-class RAGManager:
+class KGManager:
     def __init__(self):
         # 存储段落的hash值，用于去重
         self.stored_paragraph_hashes = set()
         # 实体出现次数
         self.ent_appear_cnt = dict()
-        # RAG图
+        # KG
         self.graph = ig.Graph(directed=True)
 
         # 图结构索引&映射
@@ -44,13 +44,12 @@ class RAGManager:
         self.pg_hash_file_path = self.dir_path + "/" + RAG_PG_HASH_NAMESPACE + ".json"
 
     def save_to_file(self):
-        """将RAG数据保存到文件"""
-        # 保存RAG
+        """将KG数据保存到文件"""
         # 确保目录存在
         if not os.path.exists(self.dir_path):
             os.makedirs(self.dir_path, exist_ok=True)
 
-        # 保存RAG图到文件
+        # 保存KG到文件
         if isinstance(self.graph, ig.Graph):
             self.graph.write(self.graph_data_path, format="gml")
 
@@ -60,14 +59,13 @@ class RAGManager:
         )
         ent_cnt_df.to_parquet(self.ent_cnt_data_path, engine="pyarrow", index=False)
 
-        # 保存RAG段落hash到文件
+        # 保存段落hash到文件
         with open(self.pg_hash_file_path, "w", encoding="utf-8") as f:
             data = {"stored_paragraph_hashes": list(self.stored_paragraph_hashes)}
             f.write(json.dumps(data, ensure_ascii=False, indent=4))
 
     def load_from_file(self):
-        """从文件加载RAG数据"""
-        # 加载RAG
+        """从文件加载KG数据"""
         # 确保文件存在
         if not os.path.exists(self.pg_hash_file_path):
             raise Exception(f"RAG段落hash文件{self.pg_hash_file_path}不存在")
@@ -76,18 +74,18 @@ class RAGManager:
         if not os.path.exists(self.graph_data_path):
             raise Exception(f"RAG图文件{self.graph_data_path}不存在")
 
-        # 加载RAG段落hash
+        # 加载段落hash
         with open(self.pg_hash_file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             self.stored_paragraph_hashes = set(data["stored_paragraph_hashes"])
 
-        # 加载RAG实体计数
+        # 加载实体计数
         ent_cnt_df = pd.read_parquet(self.ent_cnt_data_path, engine="pyarrow")
         self.ent_appear_cnt = dict(
             {row["hash_key"]: row["appear_cnt"] for _, row in ent_cnt_df.iterrows()}
         )
 
-        # 加载RAG图
+        # 加载KG
         self.graph = ig.Graph.Read(self.graph_data_path, format="gml")
         self.igraph_name2idx = {
             node["name"]: idx for idx, node in enumerate(self.graph.vs)
@@ -103,8 +101,8 @@ class RAGManager:
             entity_set = set()
             for triple in triple_list:
                 # 一个triple就是一条边（同时构建双向联系）
-                hash_key1 = ENT_NAMESPACE + "-" + get_md5(triple[0])
-                hash_key2 = ENT_NAMESPACE + "-" + get_md5(triple[2])
+                hash_key1 = ENT_NAMESPACE + "-" + get_sha256(triple[0])
+                hash_key2 = ENT_NAMESPACE + "-" + get_sha256(triple[2])
                 node_to_node[(hash_key1, hash_key2)] = (
                     node_to_node.get((hash_key1, hash_key2), 0) + 1.0
                 )
@@ -128,7 +126,7 @@ class RAGManager:
         """构建实体节点与文段节点之间的关系"""
         for idx in triple_list_data:
             for triple in triple_list_data[idx]:
-                ent_hash_key = ENT_NAMESPACE + "-" + get_md5(triple[0])
+                ent_hash_key = ENT_NAMESPACE + "-" + get_sha256(triple[0])
                 pg_hash_key = PG_NAMESPACE + "-" + str(idx)
                 node_to_node[(ent_hash_key, pg_hash_key)] = (
                     node_to_node.get((ent_hash_key, pg_hash_key), 0) + 1.0
@@ -146,8 +144,8 @@ class RAGManager:
         ent_hash_list = set()
         for triple_list in triple_list_data.values():
             for triple in triple_list:
-                ent_hash_list.add(ENT_NAMESPACE + "-" + get_md5(triple[0]))
-                ent_hash_list.add(ENT_NAMESPACE + "-" + get_md5(triple[2]))
+                ent_hash_list.add(ENT_NAMESPACE + "-" + get_sha256(triple[0]))
+                ent_hash_list.add(ENT_NAMESPACE + "-" + get_sha256(triple[2]))
         ent_hash_list = list(ent_hash_list)
 
         synonym_hash_set = set()
@@ -249,35 +247,29 @@ class RAGManager:
         # 添加新边
         self.graph.add_edges(edge_to_add, attributes=edge_to_add_attrs)
 
-    def build_rag(
+    def build_kg(
         self,
         triple_list_data: Dict[str, List[List[str]]],
         embedding_manager: EmbeddingManager,
     ):
-        """增量式构建RAG
+        """增量式构建KG
 
-        注意：应当在调用该方法后保存RAG
+        注意：应当在调用该方法后保存KG
 
         Args:
             triple_list_data: 三元组数据
             embedding_manager: EmbeddingManager对象
         """
-        logger.info("开始构建RAG")
-
         # 实体之间的联系
         node_to_node = dict()
 
-        # 记录已处理（存储）的段落hash
-        for idx in triple_list_data:
-            self.stored_paragraph_hashes.add(str(idx))
-
         # 构建实体节点之间的关系，同时统计实体出现次数
-        logger.info("正在构建RAG实体节点之间的关系，同时统计实体出现次数")
+        logger.info("正在构建KG实体节点之间的关系，同时统计实体出现次数")
         # 从三元组提取实体对
         self._build_edges_between_ent(node_to_node, triple_list_data)
 
         # 构建实体节点与文段节点之间的关系
-        logger.info("正在构建RAG实体节点与文段节点之间的关系")
+        logger.info("正在构建KG实体节点与文段节点之间的关系")
         self._build_edges_between_ent_pg(node_to_node, triple_list_data)
 
         # 近义词扩展链接
@@ -295,7 +287,11 @@ class RAGManager:
             node["name"]: idx for idx, node in enumerate(self.graph.vs)
         }
 
-    def rag_search_and_pr(
+        # 记录已处理（存储）的段落hash
+        for idx in triple_list_data:
+            self.stored_paragraph_hashes.add(str(idx))
+
+    def kg_search(
         self,
         relation_search_result: List[Tuple[Tuple[str, str, str], float]],
         paragraph_search_result: List[Tuple[str, float]],
@@ -323,7 +319,7 @@ class RAGManager:
             subject = relation[0]
             object = relation[2]
             for ent in [subject, object]:
-                hash_key = ENT_NAMESPACE + "-" + get_md5(ent)
+                hash_key = ENT_NAMESPACE + "-" + get_sha256(ent)
                 if hash_key in self.igraph_name2idx:
                     # 该实体需在RAG中出现过，没出现过的实体不计算权重
                     if hash_key not in ent_sim_scores:
@@ -416,7 +412,7 @@ class RAGManager:
 
         # 转换为文段哈希键和分数的列表
         res = [
-            (hash_key, score[1])
+            (score[0], hash_key, score[1])
             for hash_key, score in zip(sorted_doc_hashes, passage_node_res)
         ]
 
