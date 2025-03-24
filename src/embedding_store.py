@@ -10,7 +10,7 @@ import faiss
 
 from .llm_client import LLMClient
 from .config import ENT_NAMESPACE, PG_NAMESPACE, REL_NAMESPACE, global_config
-from .utils import get_md5
+from .utils import get_sha256
 from global_logger import logger
 
 
@@ -68,7 +68,7 @@ class EmbeddingStore:
         # 逐项处理
         for s in tqdm.tqdm(strs):
             # 计算hash去重
-            hash = self.namespace + "-" + get_md5(s)
+            hash = self.namespace + "-" + get_sha256(s)
             if hash in self.store:
                 continue
 
@@ -248,6 +248,7 @@ class EmbeddingManager:
         self._store_pg_into_embedding(raw_paragraphs)
         self._store_ent_into_embedding(triple_list_data)
         self._store_rel_into_embedding(triple_list_data)
+        self.stored_pg_hashes.update(raw_paragraphs.keys())
 
     def save_to_file(self):
         """保存到文件"""

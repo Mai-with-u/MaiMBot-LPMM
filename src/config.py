@@ -20,6 +20,8 @@ def _load_config(config, config_file_path):
 
     if "llm_providers" in file_config:
         for provider in file_config["llm_providers"]:
+            if provider["name"] not in config["llm_providers"]:
+                config["llm_providers"][provider["name"]] = dict()
             config["llm_providers"][provider["name"]]["base_url"] = provider["base_url"]
             config["llm_providers"][provider["name"]]["api_key"] = provider["api_key"]
 

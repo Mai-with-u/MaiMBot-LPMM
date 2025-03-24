@@ -5,7 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python 调试程序: 当前项目",
+            "name": "Python 调试程序: IE",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/info_extraction.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python 调试程序: LPMM",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
