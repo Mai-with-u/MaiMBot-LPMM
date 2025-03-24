@@ -50,6 +50,50 @@ def hash_deduplicate(
     return new_raw_paragraphs, new_triple_list_data
 
 
+def handle_import_openie(
+    openie_data: OpenIE, embed_manager: EmbeddingManager, kg_manager: KGManager
+) -> bool:
+    # 从OpenIE数据中提取段落原文与三元组列表
+    # 索引的段落原文
+    raw_paragraphs = openie_data.extract_raw_paragraph_dict()
+    # 索引的实体列表
+    entity_list_data = openie_data.extract_entity_dict()
+    # 索引的三元组列表
+    triple_list_data = openie_data.extract_triple_dict()
+    if len(raw_paragraphs) != len(entity_list_data) or len(raw_paragraphs) != len(
+        triple_list_data
+    ):
+        logger.error("OpenIE数据存在异常")
+        return False
+    # 将索引换为对应段落的hash值
+    logger.info("正在进行段落去重与重索引")
+    raw_paragraphs, triple_list_data = hash_deduplicate(
+        raw_paragraphs,
+        triple_list_data,
+        embed_manager.stored_pg_hashes,
+        kg_manager.stored_paragraph_hashes,
+    )
+    if len(raw_paragraphs) != 0:
+        # 获取嵌入并保存
+        logger.info(f"段落去重完成，剩余待处理的段落数量：{len(raw_paragraphs)}")
+        logger.info("开始Embedding")
+        embed_manager.store_new_data_set(raw_paragraphs, triple_list_data)
+        embed_manager.save_to_file()
+        logger.info("Embedding完成")
+        # Embedding-Faiss重索引
+        logger.info("正在重新构建Embedding向量索引")
+        embed_manager.rebuild_faiss_index()
+        logger.info("向量索引构建完成")
+        # 构建新段落的RAG
+        logger.info("开始构建RAG")
+        kg_manager.build_kg(triple_list_data, embed_manager)
+        kg_manager.save_to_file()
+        logger.info("RAG构建完成")
+    else:
+        logger.info("无新段落需要处理")
+    return True
+
+
 def process_instruction(
     inst: str,
     embed_manager: EmbeddingManager,
@@ -64,46 +108,9 @@ def process_instruction(
             except Exception as e:
                 logger.error("导入OpenIE数据文件时发生错误：{}".format(e))
                 return False
-            # 从OpenIE数据中提取段落原文与三元组列表
-            # 索引的段落原文
-            raw_paragraphs = openie_data.extract_raw_paragraph_dict()
-            # 索引的实体列表
-            entity_list_data = openie_data.extract_entity_dict()
-            # 索引的三元组列表
-            triple_list_data = openie_data.extract_triple_dict()
-            if len(raw_paragraphs) != len(entity_list_data) or len(
-                raw_paragraphs
-            ) != len(triple_list_data):
-                logger.error("OpenIE数据存在异常")
+            if handle_import_openie(openie_data, embed_manager, kg_manager) is False:
+                logger.error("处理OpenIE数据时发生错误")
                 return False
-            # 将索引换为对应段落的hash值
-            logger.info("正在进行段落去重与重索引")
-            raw_paragraphs, triple_list_data = hash_deduplicate(
-                raw_paragraphs,
-                triple_list_data,
-                embed_manager.stored_pg_hashes,
-                kg_manager.stored_paragraph_hashes,
-            )
-            if len(raw_paragraphs) != 0:
-                # 获取嵌入并保存
-                logger.info(
-                    f"段落去重完成，剩余待处理的段落数量：{len(raw_paragraphs)}"
-                )
-                logger.info("开始Embedding")
-                embed_manager.store_new_data_set(raw_paragraphs, triple_list_data)
-                embed_manager.save_to_file()
-                logger.info("Embedding完成")
-                # Embedding-Faiss重索引
-                logger.info("正在重新构建Embedding向量索引")
-                embed_manager.rebuild_faiss_index()
-                logger.info("向量索引构建完成")
-                # 构建新段落的RAG
-                logger.info("开始构建RAG")
-                kg_manager.build_kg(triple_list_data, embed_manager)
-                kg_manager.save_to_file()
-                logger.info("RAG构建完成")
-            else:
-                logger.info("无新段落需要处理")
         case "qa":
             logger.info("进入QA模式")
             while True:
