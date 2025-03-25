@@ -175,8 +175,8 @@ def main():
         embed_manager,
         kg_manager,
         llm_client_list[global_config["embedding"]["provider"]],
-        llm_client_list[global_config["embedding"]["provider"]],
-        llm_client_list[global_config["embedding"]["provider"]],
+        llm_client_list[global_config["qa"]["llm"]["provider"]],
+        llm_client_list[global_config["qa"]["llm"]["provider"]],
     )
 
     logger.info("--------进入控制台--------\n")
