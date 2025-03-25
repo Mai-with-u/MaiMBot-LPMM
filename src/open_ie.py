@@ -29,6 +29,22 @@ def filter_invalid_triples(triples: List[List[str]]) -> List[List[str]]:
 
 
 class OpenIE:
+    """
+    OpenIE规约的数据格式为如下
+    {
+        "docs": [
+            {
+                "idx": "文档的唯一标识符（通常是文本的SHA256哈希值）",
+                "passage": "文档的原始文本",
+                "extracted_entities": ["实体1", "实体2", ...],
+                "extracted_triples": [["主语", "谓语", "宾语"], ...]
+            },
+            ...
+        ],
+        "avg_ent_chars": "实体平均字符数",
+        "avg_ent_words": "实体平均词数"
+    }
+    """
     def __init__(
         self,
         docs: List[Dict[str, Any]],
@@ -55,7 +71,7 @@ class OpenIE:
             "avg_ent_words": self.avg_ent_words,
         }
 
-    def load_from_file() -> "OpenIE":
+    def load_from_file(self) -> "OpenIE":
         """从文件中加载OpenIE数据"""
         with open(
             global_config["persistence"]["openie_data_path"], "r", encoding="utf-8"
