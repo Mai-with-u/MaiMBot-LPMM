@@ -64,7 +64,7 @@ def main():
         round(sum_phrase_words / num_phrases, 4),
     )
 
-    openie_obj.save_to_file()
+    OpenIE.save(openie_obj)
 
 
 if __name__ == "__main__":

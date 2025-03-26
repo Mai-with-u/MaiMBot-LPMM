@@ -3,7 +3,7 @@ import os
 from typing import Dict, Set, Tuple
 
 from .config import global_config
-from .utils import get_sha256
+from .utils.hash import get_sha256
 from global_logger import logger
 
 
@@ -31,12 +31,12 @@ def load_raw_data() -> Tuple[Dict[str, str], Set[str]]:
     raw_data = {}
     sha256_set = set()
     for item in import_json:
-        hash = get_sha256(item)
-        if hash in sha256_set:
+        pg_hash = get_sha256(item)
+        if pg_hash in sha256_set:
             logger.warning("重复数据：{}".format(item))
             continue
-        sha256_set.add(hash)
-        raw_data[hash] = item
+        sha256_set.add(pg_hash)
+        raw_data[pg_hash] = item
     logger.info("共读取到{}条数据".format(len(raw_data)))
 
     return raw_data, sha256_set

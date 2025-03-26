@@ -9,7 +9,7 @@ from src.open_ie import OpenIE
 from src.qa_manager import QAManager
 from src.rag_processing import KGManager
 from global_logger import logger
-from src.utils import get_sha256
+from src.utils.hash import get_sha256
 
 
 def hash_deduplicate(
@@ -104,7 +104,7 @@ def process_instruction(
         case "import openie":
             logger.info("正在导入OpenIE数据文件")
             try:
-                openie_data = OpenIE.load_from_file()
+                openie_data = OpenIE.load()
             except Exception as e:
                 logger.error("导入OpenIE数据文件时发生错误：{}".format(e))
                 return False

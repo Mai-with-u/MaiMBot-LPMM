@@ -8,7 +8,7 @@ import tqdm
 import igraph as ig
 
 
-from .utils import get_sha256
+from .utils.hash import get_sha256
 from .embedding_store import EmbeddingManager, EmbeddingStoreItem
 from .config import (
     ENT_NAMESPACE,

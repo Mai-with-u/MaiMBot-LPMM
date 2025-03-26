@@ -1,5 +1,4 @@
 from openai import OpenAI
-import httpx
 
 
 class LLMMessage:
@@ -18,7 +17,6 @@ class LLMClient:
         self.client = OpenAI(
             base_url=url,
             api_key=api_key,
-            http_client=httpx.Client(verify=False)
         )
 
     def send_chat_request(self, model, messages):
@@ -26,7 +24,26 @@ class LLMClient:
         response = self.client.chat.completions.create(
             model=model, messages=messages, stream=False
         )
-        return response.choices[0].message.content
+        if hasattr(response.choices[0].message, "reasoning_content"):
+            # 有单独的推理内容块
+            reasoning_content = response.choices[0].message.reasoning_content
+            content = response.choices[0].message.content
+        else:
+            # 无单独的推理内容块
+            response = (
+                response.choices[0]
+                .message.content.split("<think>")[-1]
+                .split("</think>")
+            )
+            # 如果有推理内容，则分割推理内容和内容
+            if len(response) == 2:
+                reasoning_content = response[0]
+                content = response[1]
+            else:
+                reasoning_content = None
+                content = response[0]
+
+        return reasoning_content, content
 
     def send_embedding_request(self, model, text):
         """发送嵌入请求，等待返回结果"""

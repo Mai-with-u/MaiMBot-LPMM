@@ -106,11 +106,12 @@ class QAManager:
         # 将检索结果和问题发送给LLM，获取答案
         # 构造上下文
         context = prompt_template.build_qa_context(question, knowledge)
-        ret = self.llm_client_list["qa"].send_chat_request(
+        reasoning, content = self.llm_client_list["qa"].send_chat_request(
             global_config["qa"]["llm"]["model"], context
         )
-        # 去掉头部的 <think> 标签
-        ret = ret.split("<think>")[-1]
-        ret = ret.split("</think>")
-        print(f"思考：{ret[0]}\n回答：{ret[1]}\n")
+        if reasoning is None:
+            print(f"回答：{content}\n")
+        else:
+            print(f"思考：{reasoning}\n回答：{content}\n")
+
         logger.info(f"总用时：{time.time() - start_time:.2f}s")

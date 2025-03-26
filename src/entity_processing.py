@@ -4,7 +4,7 @@ import time
 
 import tqdm
 
-from .utils import fix_broken_generated_json
+from .utils.json_fix import fix_broken_generated_json
 from .llm_client import LLMClient
 from . import prompt_template
 from .config import global_config
@@ -14,13 +14,9 @@ from global_logger import logger
 def _entity_extract(llm_client: LLMClient, paragraph: str):
     """对段落进行实体提取，返回提取出的实体列表（JSON格式）"""
     entity_extract_context = prompt_template.build_entity_extract_context(paragraph)
-    request_result = llm_client.send_chat_request(
+    _, request_result = llm_client.send_chat_request(
         global_config["entity_extract"]["llm"]["model"], entity_extract_context
     )
-
-    # 截取</think>标签后的内容
-    if "</think>" in request_result:
-        request_result = request_result.split("</think>")[1]
 
     # 去除‘{’前的内容（结果中可能有多个‘{’）
     if "{" in request_result:
