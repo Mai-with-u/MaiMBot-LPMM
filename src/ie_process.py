@@ -4,7 +4,7 @@ from typing import List
 
 from global_logger import logger
 from . import prompt_template
-from .config import global_config
+from .config import global_config, INVALID_ENTITY
 from .llm_client import LLMClient
 from .utils.json_fix import fix_broken_generated_json
 
@@ -25,6 +25,16 @@ def _entity_extract(llm_client: LLMClient, paragraph: str) -> List[str]:
         request_result = request_result[: request_result.rindex("]") + 1]
 
     entity_extract_result = json.loads(fix_broken_generated_json(request_result))
+
+    entity_extract_result = [
+        entity
+        for entity in entity_extract_result
+        if (entity is not None) and (entity != "") and (entity not in INVALID_ENTITY)
+    ]
+
+    if len(entity_extract_result) == 0:
+        raise Exception("实体提取结果为空")
+
     return entity_extract_result
 
 
@@ -49,7 +59,7 @@ def _rdf_triple_extract(
 
     entity_extract_result = json.loads(fix_broken_generated_json(request_result))
 
-    for triple in entity_extract_result["triples"]:
+    for triple in entity_extract_result:
         if (
             len(triple) != 3
             or (triple[0] is None or triple[1] is None or triple[2] is None)
