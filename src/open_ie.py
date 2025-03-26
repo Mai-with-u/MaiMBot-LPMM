@@ -2,11 +2,25 @@ import json
 from typing import Any, Dict, List
 
 
+from .config import INVALID_ENTITY, global_config
 
-from .config import global_config
+
+def _filter_invalid_entities(entities: List[str]) -> List[str]:
+    """过滤无效的实体"""
+    valid_entities = set()
+    for entity in entities:
+        if (
+            entity is not None
+            and entity.strip() != ""
+            and entity not in INVALID_ENTITY
+            and entity not in valid_entities
+        ):
+            # 不为空，不在无效实体列表中，不重复
+            valid_entities.add(entity)
+    return list(valid_entities)
 
 
-def filter_invalid_triples(triples: List[List[str]]) -> List[List[str]]:
+def _filter_invalid_triples(triples: List[List[str]]) -> List[List[str]]:
     """过滤无效的三元组"""
     unique_triples = set()
     valid_triples = []
@@ -45,6 +59,7 @@ class OpenIE:
         "avg_ent_words": "实体平均词数"
     }
     """
+
     def __init__(
         self,
         docs: List[Dict[str, Any]],
@@ -54,6 +69,14 @@ class OpenIE:
         self.docs = docs
         self.avg_ent_chars = avg_ent_chars
         self.avg_ent_words = avg_ent_words
+
+        for doc in self.docs:
+            # 过滤实体列表
+            doc["extracted_entities"] = _filter_invalid_entities(
+                doc["extracted_entities"]
+            )
+            # 过滤无效的三元组
+            doc["extracted_triples"] = _filter_invalid_triples(doc["extracted_triples"])
 
     def _from_dict(data):
         """从字典中获取OpenIE对象"""
@@ -71,7 +94,8 @@ class OpenIE:
             "avg_ent_words": self.avg_ent_words,
         }
 
-    def load_from_file(self) -> "OpenIE":
+    @staticmethod
+    def load() -> "OpenIE":
         """从文件中加载OpenIE数据"""
         with open(
             global_config["persistence"]["openie_data_path"], "r", encoding="utf-8"
@@ -82,12 +106,13 @@ class OpenIE:
 
         return openie_data
 
-    def save_to_file(self):
+    @staticmethod
+    def save(openie_data: "OpenIE"):
         """保存OpenIE数据到文件"""
         with open(
             global_config["persistence"]["openie_data_path"], "w", encoding="utf-8"
         ) as f:
-            f.write(json.dumps(self._to_dict(), ensure_ascii=False, indent=4))
+            f.write(json.dumps(openie_data._to_dict(), ensure_ascii=False, indent=4))
 
     def extract_entity_dict(self):
         """提取实体列表"""
