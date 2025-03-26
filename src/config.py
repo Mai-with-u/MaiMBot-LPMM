@@ -116,9 +116,8 @@ global_config = dict(
             },
         },
         "persistence": {
+            "data_root_path": "data",
             "raw_data_path": "data/raw.json",
-            "entity_data_path": "data/entity.json",
-            "rdf_data_path": "data/rdf.json",
             "openie_data_path": "data/openie.json",
             "embedding_data_dir": "data/embedding",
             "rag_data_dir": "data/rag",
