@@ -1,10 +1,13 @@
+import argparse
+
+import tqdm
+
 from global_logger import logger
-from src.entity_processing import process_entity_extract
+from src.config import global_config
+from src.ie_process import info_extract_from_str
 from src.llm_client import LLMClient
 from src.open_ie import OpenIE
 from src.raw_processing import load_raw_data
-from src.config import global_config
-from src.rdf_processing import process_rdf_extract
 
 
 def main():
@@ -19,34 +22,35 @@ def main():
         )
 
     logger.info("正在加载原始数据")
-    raw_data, sha256_set = load_raw_data()
+    sha256_list, raw_datas = load_raw_data()
     logger.info("原始数据加载完成\n")
 
-    logger.info("正在进行信息提取")
-    logger.info("正在进行实体列表提取")
-    entity_lists = process_entity_extract(
-        llm_client_list[global_config["entity_extract"]["llm"]["provider"]],
-        raw_data,
-        sha256_set,
-    )
-    logger.info("实体列表提取完成\n")
+    entity_lists = []
+    rdf_triple_lists = []
+    failed_sha256 = []
 
-    logger.info("正在进行关系提取")
-    rdf_triple_lists = process_rdf_extract(
-        llm_client_list[global_config["rdf_build"]["llm"]["provider"]],
-        raw_data,
-        sha256_set,
-        entity_lists,
-    )
+    for sha, raw_data in tqdm.tqdm(zip(sha256_list, raw_datas), postfix="正在进行提取：", total=len(sha256_list)):
+        entity_list, rdf_triple_list = info_extract_from_str(
+            llm_client_list[global_config["entity_extract"]["llm"]["provider"]],
+            llm_client_list[global_config["rdf_build"]["llm"]["provider"]],
+            raw_data,
+        )
+        if entity_list is None or rdf_triple_list is None:
+            failed_sha256.append(sha)
+            logger.error(f"提取失败：{sha}")
+            continue
+        else:
+            entity_lists.append(entity_list)
+            rdf_triple_lists.append(rdf_triple_list)
 
     open_ie_doc = []
-    for hash in sha256_set:
+    for pg_hash, raw_data, entity_list, rdf_triple_list in zip(sha256_list, raw_datas, entity_lists, rdf_triple_lists):
         open_ie_doc.append(
             {
-                "idx": hash,
-                "passage": raw_data[hash],
-                "extracted_entities": entity_lists[hash],
-                "extracted_triples": rdf_triple_lists[hash],
+                "idx": pg_hash,
+                "passage": raw_data,
+                "extracted_entities": entity_list,
+                "extracted_triples": rdf_triple_list,
             }
         )
 
@@ -65,6 +69,9 @@ def main():
     )
 
     OpenIE.save(openie_obj)
+
+    logger.info("--------信息提取完成--------")
+    logger.info(f"提取失败的文段SHA256：{failed_sha256}")
 
 
 if __name__ == "__main__":

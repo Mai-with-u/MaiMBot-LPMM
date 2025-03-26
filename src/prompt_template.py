@@ -1,21 +1,23 @@
+from typing import List
+
 from .llm_client import LLMMessage
 
 entity_extract_system_prompt = """你是一个性能优异的实体提取系统。请从段落中提取出所有实体，并以JSON列表的形式输出。
 
 输出格式示例：
-{
-    “named_entities”: ["实体A", "实体B", "实体C"]
-}
+[ "实体A", "实体B", "实体C" ]
 
 请注意以下要求：
+- 将代词（如“你”、“我”、“他”、“她”、“它”等）转化为对应的实体命名，以避免指代不清。
 - 尽可能多的提取出段落中的全部实体；
-- 将代词转化为对应的实体命名，以避免指代不清。"""
+"""
 
 
-def build_entity_extract_context(paragraph: str) -> str:
-    messages = []
-    messages.append(LLMMessage("system", entity_extract_system_prompt).to_dict())
-    messages.append(LLMMessage("user", f"""段落：\n```\n{paragraph}```""").to_dict())
+def build_entity_extract_context(paragraph: str) -> List[LLMMessage]:
+    messages = [
+        LLMMessage("system", entity_extract_system_prompt).to_dict(),
+        LLMMessage("user", f"""段落：\n```\n{paragraph}```""").to_dict(),
+    ]
     return messages
 
 
@@ -24,27 +26,25 @@ rdf_triple_extract_system_prompt = """你是一个性能优异的RDF（资源描
 请使用JSON回复，使用三元组的JSON列表输出RDF图中的关系（每个三元组代表一个关系）。
 
 输出格式示例：
-{
-    "triples":[
+[
         ["某实体","关系","某属性"],
         ["某实体","关系","某实体"],
         ["某资源","关系","某属性"]
-    ]
-}
+]
 
 请注意以下要求：
 - 每个三元组应包含每个段落的实体命名列表中的至少一个命名实体，但最好是两个。
-- 将代词（如“你”、“我”、“他”、“她”、“它”等）清楚地解析为其具体名称以保持清晰度。"""
+- 将代词（如“你”、“我”、“他”、“她”、“它”等）转化为对应的实体命名，以避免指代不清。
+"""
 
 
-def build_rdf_triple_extract_context(paragraph: str, entities: str) -> str:
-    messages = []
-    messages.append(LLMMessage("system", rdf_triple_extract_system_prompt).to_dict())
-    messages.append(
+def build_rdf_triple_extract_context(paragraph: str, entities: str) -> List[LLMMessage]:
+    messages = [
+        LLMMessage("system", rdf_triple_extract_system_prompt).to_dict(),
         LLMMessage(
             "user", f"""段落：\n```\n{paragraph}```\n\n实体列表：\n```\n{entities}```"""
-        ).to_dict()
-    )
+        ).to_dict(),
+    ]
     return messages
 
 
@@ -53,15 +53,16 @@ qa_system_prompt = (
 )
 
 
-def build_qa_context(question: str, knowledge: list[(str, str, str)]) -> str:
-    messages = []
-    messages.append(LLMMessage("system", qa_system_prompt).to_dict())
+def build_qa_context(
+    question: str, knowledge: list[(str, str, str)]
+) -> List[LLMMessage]:
     knowledge = "\n".join(
         [f"{i + 1}. 相关性：{k[0]}\n{k[1]}" for i, k in enumerate(knowledge)]
     )
-    messages.append(
+    messages = [
+        LLMMessage("system", qa_system_prompt).to_dict(),
         LLMMessage(
             "user", f"问题：\n{question}\n\n可能有帮助的信息：\n{knowledge}"
-        ).to_dict()
-    )
+        ).to_dict(),
+    ]
     return messages
