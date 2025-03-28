@@ -84,6 +84,8 @@ def main():
 
     logger.info("--------信息提取完成--------")
     logger.info(f"提取失败的文段SHA256：{failed_sha256}")
+    
+    #警告，这里是相对路径，有出错风险，建议更换为绝对路径！
     logger.info("-------清理缓存文件夹------")
     shutil.rmtree(TEMP_DIR)
 
