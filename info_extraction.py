@@ -3,6 +3,7 @@ import json
 import os
 
 import tqdm
+import shutil
 
 from global_logger import logger
 from src.config import global_config
@@ -83,7 +84,8 @@ def main():
 
     logger.info("--------信息提取完成--------")
     logger.info(f"提取失败的文段SHA256：{failed_sha256}")
-
+    logger.info("-------清理缓存文件夹------")
+    shutil.rmtree(TEMP_DIR)
 
 if __name__ == "__main__":
     main()
