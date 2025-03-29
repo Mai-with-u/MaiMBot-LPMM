@@ -4,7 +4,7 @@ from typing import Dict, List
 from src.config import PG_NAMESPACE, global_config
 from src.embedding_store import EmbeddingManager
 from src.llm_client import LLMClient
-from src.mem_active_manager import MemActiveManager
+from src.mem_active_manager import MemoryActiveManager
 from src.open_ie import OpenIE
 from src.qa_manager import QAManager
 from src.kg_manager import KGManager
@@ -99,7 +99,7 @@ def process_instruction(
     embed_manager: EmbeddingManager,
     kg_manager: KGManager,
     qa_manager: QAManager,
-    mem_active_manager: MemActiveManager,
+    mem_active_manager: MemoryActiveManager,
 ):
     match inst:
         case "import oie":
@@ -189,7 +189,7 @@ def main():
     )
 
     # 记忆激活（用于记忆库）
-    inspire_manager = MemActiveManager(
+    inspire_manager = MemoryActiveManager(
         embed_manager,
         llm_client_list[global_config["embedding"]["provider"]],
     )
