@@ -4,8 +4,9 @@ from global_logger import logger
 from src import prompt_template
 from src.embedding_store import EmbeddingManager
 from src.llm_client import LLMClient
-from src.rag_processing import KGManager
+from src.kg_manager import KGManager
 from src.config import global_config
+from src.utils.dyn_topk import dyn_select_top_k
 
 
 class QAManager:
@@ -25,7 +26,7 @@ class QAManager:
             "qa": llm_client_qa,
         }
 
-    def process_query(self, question: str) -> str:
+    def process_query(self, question: str):
         """处理查询"""
         start_time = time.time()  # 计时：总用时计算
         part_start_time = start_time  # 计时：部分用时计算
@@ -44,23 +45,19 @@ class QAManager:
         )
         # 过滤阈值
         # 考虑动态阈值：当存在显著数值差异的结果时，保留显著结果；否则，保留所有结果
-        relation_search_res = [
-            (
-                tuple(
-                    self.embed_manager.relation_embedding_store.store[res[0]]
-                    .str[1:-1]
-                    .split(", ")
-                ),
-                res[1],
-            )
-            for res in relation_search_res
-            if res[1] >= global_config["qa"]["params"]["relation_threshold"]
-        ]
+        relation_search_res = dyn_select_top_k(relation_search_res, 0.5, 1.0)
+        if (
+            relation_search_res[0][1]
+            < global_config["qa"]["params"]["relation_threshold"]
+        ):
+            # 未找到相关关系
+            relation_search_res = []
         logger.info(f"关系检索用时：{time.time() - part_start_time:.2f}s")
         part_start_time = time.time()
 
         for res in relation_search_res:
-            print(f"找到相关关系，相似度：{(res[1] * 100):.2f}%  -  {res[0]}")
+            rel_str = self.embed_manager.relation_embedding_store.store.get(res[0]).str
+            print(f"找到相关关系，相似度：{(res[1] * 100):.2f}%  -  {rel_str}")
 
         # TODO: 使用LLM过滤三元组结果
         # logger.info(f"LLM过滤三元组用时：{time.time() - part_start_time:.2f}s")
@@ -79,16 +76,16 @@ class QAManager:
             logger.info("找到相关关系，将使用RAG进行检索")
             # 使用KG检索
             result = self.kg_manager.kg_search(
-                relation_search_res, paragraph_search_res
+                relation_search_res, paragraph_search_res, self.embed_manager
             )
-            idx_with_score = [(item[0], item[2]) for item in result]
-            result = [(item[1], item[2]) for item in result]
             logger.info(f"RAG检索用时：{time.time() - part_start_time:.2f}s")
             part_start_time = time.time()
         else:
             logger.info("未找到相关关系，将使用文段检索结果")
             result = paragraph_search_res
-        result = result[: global_config["qa"]["params"]["res_top_k"]]
+
+        # 过滤阈值
+        result = dyn_select_top_k(result, 0.4, 1.0)
 
         for res in result:
             raw_paragraph = self.embed_manager.paragraphs_embedding_store.store[

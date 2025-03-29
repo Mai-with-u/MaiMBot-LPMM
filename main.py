@@ -1,13 +1,13 @@
 import sys
 from typing import Dict, List
-import igraph as ig
 
 from src.config import PG_NAMESPACE, global_config
 from src.embedding_store import EmbeddingManager
 from src.llm_client import LLMClient
+from src.mem_active_manager import MemoryActiveManager
 from src.open_ie import OpenIE
 from src.qa_manager import QAManager
-from src.rag_processing import KGManager
+from src.kg_manager import KGManager
 from global_logger import logger
 from src.utils.hash import get_sha256
 
@@ -78,12 +78,12 @@ def handle_import_openie(
         logger.info(f"段落去重完成，剩余待处理的段落数量：{len(raw_paragraphs)}")
         logger.info("开始Embedding")
         embed_manager.store_new_data_set(raw_paragraphs, triple_list_data)
-        embed_manager.save_to_file()
-        logger.info("Embedding完成")
         # Embedding-Faiss重索引
-        logger.info("正在重新构建Embedding向量索引")
+        logger.info("正在重新构建向量索引")
         embed_manager.rebuild_faiss_index()
         logger.info("向量索引构建完成")
+        embed_manager.save_to_file()
+        logger.info("Embedding完成")
         # 构建新段落的RAG
         logger.info("开始构建RAG")
         kg_manager.build_kg(triple_list_data, embed_manager)
@@ -99,9 +99,10 @@ def process_instruction(
     embed_manager: EmbeddingManager,
     kg_manager: KGManager,
     qa_manager: QAManager,
+    mem_active_manager: MemoryActiveManager,
 ):
     match inst:
-        case "import openie":
+        case "import oie":
             logger.info("正在导入OpenIE数据文件")
             try:
                 openie_data = OpenIE.load()
@@ -122,17 +123,24 @@ def process_instruction(
                 if question == "":
                     continue
                 qa_manager.process_query(question)
+        case "activate test":
+            logger.info("激活度测试")
+            while True:
+                print("请在此处输入问题，输入exit退出：", end="")
+                sys.stdout.flush()
+                question = input().strip()
+                if question == "exit":
+                    break
+                if question == "":
+                    continue
+                act = mem_active_manager.get_activation(question)
+                print(f"激活度：{act}")
         case "export graph-svg":
-            logger.info("正在保存RAG图为svg文件")
+            logger.info("正在保存KG为svg文件")
             # 将KG输出到svg文件
-            ig.plot(
-                kg_manager.graph,
-                bbox=(0, 0, 1024, 1024),
-                target="RAG_KG.svg",
-            )
+            kg_manager.draw_graph()
         case _:
-            print("无效指令")
-            return False
+            print(f"无效指令：{inst}")
 
 
 def main():
@@ -171,12 +179,19 @@ def main():
         if key not in embed_manager.stored_pg_hashes:
             logger.warning(f"KG中存在Embedding库中不存在的段落：{key}")
 
+    # 问答系统（用于知识库）
     qa_manager = QAManager(
         embed_manager,
         kg_manager,
         llm_client_list[global_config["embedding"]["provider"]],
         llm_client_list[global_config["qa"]["llm"]["provider"]],
         llm_client_list[global_config["qa"]["llm"]["provider"]],
+    )
+
+    # 记忆激活（用于记忆库）
+    inspire_manager = MemoryActiveManager(
+        embed_manager,
+        llm_client_list[global_config["embedding"]["provider"]],
     )
 
     logger.info("--------进入控制台--------\n")
@@ -198,7 +213,9 @@ def main():
                 logger.info("--------退出--------")
                 exit(0)
             elif (
-                process_instruction(inst, embed_manager, kg_manager, qa_manager)
+                process_instruction(
+                    inst, embed_manager, kg_manager, qa_manager, inspire_manager
+                )
                 is False
             ):
                 logger.error("指令流程出现错误，请检查")

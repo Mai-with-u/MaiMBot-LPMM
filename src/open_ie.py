@@ -10,13 +10,15 @@ def _filter_invalid_entities(entities: List[str]) -> List[str]:
     valid_entities = set()
     for entity in entities:
         if (
-            entity is not None
-            and entity.strip() != ""
-            and entity not in INVALID_ENTITY
-            and entity not in valid_entities
+            not isinstance(entity, str)
+            or entity.strip() == ""
+            or entity in INVALID_ENTITY
+            or entity in valid_entities
         ):
-            # 不为空，不在无效实体列表中，不重复
-            valid_entities.add(entity)
+            # 非字符串/空字符串/在无效实体列表中/重复
+            continue
+        valid_entities.add(entity)
+
     return list(valid_entities)
 
 
@@ -27,9 +29,9 @@ def _filter_invalid_triples(triples: List[List[str]]) -> List[List[str]]:
 
     for triple in triples:
         if len(triple) != 3 or (
-            (triple[0] is None or triple[0].strip() == "")
-            or (triple[1] is None or triple[1].strip() == "")
-            or (triple[2] is None or triple[2].strip() == "")
+            (not isinstance(triple[0], str) or triple[0].strip() == "")
+            or (not isinstance(triple[1], str) or triple[1].strip() == "")
+            or (not isinstance(triple[2], str) or triple[2].strip() == "")
         ):
             # 三元组长度不为3，或其中存在空值
             continue
@@ -78,6 +80,7 @@ class OpenIE:
             # 过滤无效的三元组
             doc["extracted_triples"] = _filter_invalid_triples(doc["extracted_triples"])
 
+    @staticmethod
     def _from_dict(data):
         """从字典中获取OpenIE对象"""
         return OpenIE(

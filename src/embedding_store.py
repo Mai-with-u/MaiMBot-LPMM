@@ -18,22 +18,10 @@ from global_logger import logger
 class EmbeddingStoreItem:
     """嵌入库中的项"""
 
-    def __init__(self, hash: str, embedding: List[float], str: str):
-        self.hash = hash
+    def __init__(self, item_hash: str, embedding: List[float], content: str):
+        self.hash = item_hash
         self.embedding = embedding
-        self.str = str
-
-    def cosine_compare(
-        item1: "EmbeddingStoreItem", item2: "EmbeddingStoreItem"
-    ) -> float:
-        """比较两个项的Embedding的余弦相似度"""
-        embed1 = np.array(item1.embedding)
-        embed2 = np.array(item2.embedding)
-        assert len(embed1) == len(embed2), "两个Embedding长度不一致"
-        cosine = np.dot(embed1, embed2) / (
-            np.linalg.norm(embed1) * np.linalg.norm(embed2)
-        )
-        return cosine
+        self.str = content
 
     def to_dict(self) -> dict:
         """转为dict"""
@@ -66,17 +54,17 @@ class EmbeddingStore:
     def batch_insert_strs(self, strs: List[str]) -> None:
         """向库中存入字符串"""
         # 逐项处理
-        for s in tqdm.tqdm(strs):
+        for s in tqdm.tqdm(strs, desc="存入嵌入库", unit="items"):
             # 计算hash去重
-            hash = self.namespace + "-" + get_sha256(s)
-            if hash in self.store:
+            item_hash = self.namespace + "-" + get_sha256(s)
+            if item_hash in self.store:
                 continue
 
             # 获取embedding
             embedding = self._get_embedding(s)
 
             # 存入
-            self.store[hash] = EmbeddingStoreItem(hash, embedding, s)
+            self.store[item_hash] = EmbeddingStoreItem(item_hash, embedding, s)
 
     def save_to_file(self) -> None:
         """保存到文件"""
@@ -103,8 +91,8 @@ class EmbeddingStore:
             logger.info(
                 f"正在保存{self.namespace}嵌入库的idx2hash映射到文件{self.idx2hash_file_path}"
             )
-            with open(self.idx2hash_file_path, "w") as f:
-                json.dump(self.idx2hash, f)
+            with open(self.idx2hash_file_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(self.idx2hash, ensure_ascii=False, indent=4))
             logger.info(f"{self.namespace}嵌入库的idx2hash映射保存成功")
 
     def load_from_file(self) -> None:
@@ -210,7 +198,7 @@ class EmbeddingManager:
 
     def _store_pg_into_embedding(self, raw_paragraphs: Dict[str, str]):
         """将段落编码存入Embedding库"""
-        self.paragraphs_embedding_store.batch_insert_strs(raw_paragraphs.values())
+        self.paragraphs_embedding_store.batch_insert_strs(list(raw_paragraphs.values()))
 
     def _store_ent_into_embedding(self, triple_list_data: Dict[str, List[List[str]]]):
         """将实体编码存入Embedding库"""

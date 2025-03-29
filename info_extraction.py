@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 
@@ -37,7 +36,7 @@ def main():
     failed_sha256 = []
     open_ie_doc = []
     for pg_hash, raw_data in tqdm.tqdm(
-        zip(sha256_list, raw_datas), postfix="正在进行提取："
+        zip(sha256_list, raw_datas), postfix="正在进行提取：", total=len(sha256_list)
     ):
         if os.path.exists(f"{TEMP_DIR}/{pg_hash}.json"):
             # 存在对应的提取结果
