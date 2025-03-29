@@ -48,9 +48,14 @@ def build_rdf_triple_extract_context(paragraph: str, entities: str) -> List[LLMM
     return messages
 
 
-qa_system_prompt = (
-    """你是一个性能优异的QA系统。请根据给定的问题和一些可能对你有帮助的信息作出回答。"""
-)
+qa_system_prompt = """
+你是一个性能优异的QA系统。请根据给定的问题和一些可能对你有帮助的信息作出回答。
+
+请注意以下要求：
+- 你可以使用给定的信息来回答问题，但请不要直接引用它们。
+- 你的回答应该简洁明了，避免冗长的解释。
+- 如果你无法回答问题，请直接说“我不知道”。
+"""
 
 
 def build_qa_context(

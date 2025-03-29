@@ -1,12 +1,14 @@
 import json
 import os
+import time
 from typing import Dict, List, Tuple
 
+import matplotlib
+import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import pandas as pd
 import tqdm
-import igraph as ig
-
 
 from .utils.hash import get_sha256
 from .embedding_store import EmbeddingManager, EmbeddingStoreItem
@@ -21,23 +23,22 @@ from .config import (
 
 from global_logger import logger
 
+matplotlib.rcParams["font.family"] = "Microsoft YaHei"
+
 
 class KGManager:
     def __init__(self):
+        # 会被保存的字段
         # 存储段落的hash值，用于去重
         self.stored_paragraph_hashes = set()
         # 实体出现次数
         self.ent_appear_cnt = dict()
         # KG
-        self.graph = ig.Graph(directed=True)
-
-        # 图结构索引&映射
-        # 从node-key到图中的索引
-        self.igraph_name2idx: Dict[str, int] = dict()
+        self.graph = nx.DiGraph()
 
         # 持久化相关
         self.dir_path = global_config["persistence"]["rag_data_dir"]
-        self.graph_data_path = self.dir_path + "/" + RAG_GRAPH_NAMESPACE + ".gml"
+        self.graph_data_path = self.dir_path + "/" + RAG_GRAPH_NAMESPACE + ".graphmlz"
         self.ent_cnt_data_path = (
             self.dir_path + "/" + RAG_ENT_CNT_NAMESPACE + ".parquet"
         )
@@ -49,9 +50,8 @@ class KGManager:
         if not os.path.exists(self.dir_path):
             os.makedirs(self.dir_path, exist_ok=True)
 
-        # 保存KG到文件
-        if isinstance(self.graph, ig.Graph):
-            self.graph.write(self.graph_data_path, format="gml")
+        # 保存KG
+        nx.write_graphml(self.graph, path=self.graph_data_path, encoding="utf-8")
 
         # 保存实体计数到文件
         ent_cnt_df = pd.DataFrame(
@@ -68,11 +68,11 @@ class KGManager:
         """从文件加载KG数据"""
         # 确保文件存在
         if not os.path.exists(self.pg_hash_file_path):
-            raise Exception(f"RAG段落hash文件{self.pg_hash_file_path}不存在")
+            raise Exception(f"KG段落hash文件{self.pg_hash_file_path}不存在")
         if not os.path.exists(self.ent_cnt_data_path):
-            raise Exception(f"RAG实体计数文件{self.ent_cnt_data_path}不存在")
+            raise Exception(f"KG实体计数文件{self.ent_cnt_data_path}不存在")
         if not os.path.exists(self.graph_data_path):
-            raise Exception(f"RAG图文件{self.graph_data_path}不存在")
+            raise Exception(f"KG图文件{self.graph_data_path}不存在")
 
         # 加载段落hash
         with open(self.pg_hash_file_path, "r", encoding="utf-8") as f:
@@ -86,10 +86,9 @@ class KGManager:
         )
 
         # 加载KG
-        self.graph = ig.Graph.Read(self.graph_data_path, format="gml")
-        self.igraph_name2idx = {
-            node["name"]: idx for idx, node in enumerate(self.graph.vs)
-        }
+        self.graph = nx.read_graphml(self.graph_data_path)
+        if not isinstance(self.graph, nx.DiGraph):
+            raise Exception("KG图文件存在问题")
 
     def _build_edges_between_ent(
         self,
@@ -100,6 +99,9 @@ class KGManager:
         for triple_list in triple_list_data.values():
             entity_set = set()
             for triple in triple_list:
+                if triple[0] == triple[2]:
+                    # 避免自连接
+                    continue
                 # 一个triple就是一条边（同时构建双向联系）
                 hash_key1 = ENT_NAMESPACE + "-" + get_sha256(triple[0])
                 hash_key2 = ENT_NAMESPACE + "-" + get_sha256(triple[2])
@@ -118,8 +120,8 @@ class KGManager:
                     self.ent_appear_cnt.get(hash_key, 0) + 1.0
                 )
 
+    @staticmethod
     def _build_edges_between_ent_pg(
-        self,
         node_to_node: Dict[Tuple[str, str], float],
         triple_list_data: Dict[str, List[List[str]]],
     ):
@@ -132,8 +134,8 @@ class KGManager:
                     node_to_node.get((ent_hash_key, pg_hash_key), 0) + 1.0
                 )
 
+    @staticmethod
     def _synonym_connect(
-        self,
         node_to_node: Dict[Tuple[str, str], float],
         triple_list_data: Dict[str, List[List[str]]],
         embedding_manager: EmbeddingManager,
@@ -191,61 +193,82 @@ class KGManager:
             print(f'"{k}"的相似实体为：{v}')
         return new_edge_cnt
 
-    def _add_nodes(
+    def _update_graph(
         self,
         node_to_node: Dict[Tuple[str, str], float],
+        embedding_manager: EmbeddingManager,
     ):
-        """向Graph添加节点"""
-        # TODO: 需要测试-在已有节点的情况下，是否会重复添加节点
-        # 已存在的节点
-        existing_nodes = {
-            v["name"]: v for v in self.graph.vs if "name" in v.attributes()
-        }
+        """更新KG图结构
 
-        # 筛出新节点
-        new_node_attrs = {"name": [], "type": []}
-        for key in node_to_node:
-            for node_hash in key:
-                if (node_hash not in existing_nodes) and (
-                    node_hash not in new_node_attrs["name"]
-                ):
-                    # 既不是已存在节点，也不是已记录的新节点
-                    new_node_attrs["name"].append(node_hash)
-                    if node_hash.startswith(ENT_NAMESPACE):
-                        new_node_attrs["type"].append("ent")
-                    elif node_hash.startswith(PG_NAMESPACE):
-                        new_node_attrs["type"].append("pg")
-                    else:
-                        raise Exception(f"未知节点类型：{node_hash}")
+        流程：
+        1. 更新图结构：遍历所有待添加的新边
+            - 若是新边，则添加到图中
+            - 若是已存在的边，则更新边的权重
+        2. 更新新节点的属性
+        """
+        existed_nodes = [str(node) for node in self.graph.nodes]
+        existed_edges = [str((edge[0], edge[1])) for edge in self.graph.edges]
 
-        self.graph.add_vertices(
-            n=len(new_node_attrs["name"]), attributes=new_node_attrs
-        )
+        # TODO: 边的创建时间，用于遗忘机制
+        # TODO: 节点创建时间，用于遗忘机制
+        now_time = time.time()
 
-    def _add_edges(
-        self,
-        node_to_node: Dict[Tuple[str, str], float],
-    ):
-        """向Graph添加边"""
-        # TODO: 需要测试-在已有边的情况下，是否会重复添加边
-        # 已存在的边
-        existing_edges = {
-            (v.source, v.target): v for v in self.graph.es if "weight" in v.attributes()
-        }
-
-        # 遍历所有新边
-        edge_to_add, edge_to_add_attrs = [], dict({"weight": []})
-        for key, weight in node_to_node.items():
-            if key not in existing_edges:
-                # 未记录的边
-                edge_to_add.append(key)
-                edge_to_add_attrs["weight"].append(weight)
+        # 更新图结构
+        for src_tgt, weight in node_to_node.items():
+            key = str(src_tgt)
+            # 检查边是否已存在
+            if key not in existed_edges:
+                # 新边
+                new_edges = [
+                    (
+                        src_tgt[0],
+                        src_tgt[1],
+                        {
+                            "weight": weight,
+                            "create_time": now_time,
+                            "update_time": now_time,
+                        },
+                    ),
+                    (
+                        src_tgt[1],
+                        src_tgt[0],
+                        {
+                            "weight": weight,
+                            "create_time": now_time,
+                            "update_time": now_time,
+                        },
+                    ),
+                ]
+                self.graph.add_edges_from(new_edges)
             else:
-                # 已记录的边
-                existing_edges[key]["weight"] += weight
+                # 已存在的边
+                self.graph.edges[src_tgt[0], src_tgt[1]]["weight"] += weight
+                self.graph.edges[src_tgt[0], src_tgt[1]]["update_time"] = now_time
+                self.graph.edges[src_tgt[1], src_tgt[0]]["weight"] += weight
+                self.graph.edges[src_tgt[1], src_tgt[0]]["update_time"] = now_time
 
-        # 添加新边
-        self.graph.add_edges(edge_to_add, attributes=edge_to_add_attrs)
+        # 更新新节点属性
+        for src_tgt in node_to_node.keys():
+            for node_hash in src_tgt:
+                if node_hash not in existed_nodes:
+                    if node_hash.startswith(ENT_NAMESPACE):
+                        # 新增实体节点
+                        node = embedding_manager.entities_embedding_store.store[
+                            node_hash
+                        ]
+                        assert isinstance(node, EmbeddingStoreItem)
+                        self.graph.nodes[node_hash]["content"] = node.str
+                        self.graph.nodes[node_hash]["type"] = "ent"
+                    elif node_hash.startswith(PG_NAMESPACE):
+                        # 新增文段节点
+                        node = embedding_manager.paragraphs_embedding_store.store[
+                            node_hash
+                        ]
+                        assert isinstance(node, EmbeddingStoreItem)
+                        self.graph.nodes[node_hash]["content"] = (
+                            node.str if len(node.str) > 8 else node.str[:8] + "..."
+                        )
+                        self.graph.nodes[node_hash]["type"] = "pg"
 
     def build_kg(
         self,
@@ -278,14 +301,7 @@ class KGManager:
         self._synonym_connect(node_to_node, triple_list_data, embedding_manager)
 
         # 构建图
-        # sync_igraph
-        # 从node_to_node中提取节点和边
-        self._add_nodes(node_to_node)
-        self._add_edges(node_to_node)
-        # 更新索引映射
-        self.igraph_name2idx = {
-            node["name"]: idx for idx, node in enumerate(self.graph.vs)
-        }
+        self._update_graph(node_to_node, embedding_manager)
 
         # 记录已处理（存储）的段落hash
         for idx in triple_list_data:
@@ -295,125 +311,159 @@ class KGManager:
         self,
         relation_search_result: List[Tuple[Tuple[str, str, str], float]],
         paragraph_search_result: List[Tuple[str, float]],
+        embed_manager: EmbeddingManager,
     ):
         """RAG搜索与PageRank
 
         Args:
             relation_search_result: RelationEmbedding的搜索结果（relation_tripple, similarity）
             paragraph_search_result: ParagraphEmbedding的搜索结果（paragraph_hash, similarity）
+            embed_manager: EmbeddingManager对象
         """
-        logger.info("开始RAG搜索")
+        # 图中存在的节点总集
+        existed_nodes = [str(node) for node in self.graph.nodes]
 
         # 准备PPR使用的数据
         # 节点权重：实体
-        ent_weights = np.zeros(len(self.graph.vs["name"]))
+        ent_weights = {}
         # 节点权重：文段
-        pg_weights = np.zeros(len(self.graph.vs["name"]))
+        pg_weights = {}
 
-        # 以下部分处理实体权重
+        # 以下部分处理实体权重ent_weights
 
         # 针对每个关系，提取出其中的主宾短语作为两个实体，并记录对应的三元组的相似度作为权重依据
         ent_sim_scores = {}
-        for relation, similarity in relation_search_result:
+        for relation_hash, similarity, _ in relation_search_result:
             # 提取主宾短语
-            subject = relation[0]
-            object = relation[2]
-            for ent in [subject, object]:
-                hash_key = ENT_NAMESPACE + "-" + get_sha256(ent)
-                if hash_key in self.igraph_name2idx:
-                    # 该实体需在RAG中出现过，没出现过的实体不计算权重
-                    if hash_key not in ent_sim_scores:
-                        ent_sim_scores[hash_key] = (ent, [])
-                    ent_sim_scores[hash_key][1].append(similarity)
+            relation = embed_manager.relation_embedding_store.store.get(
+                relation_hash
+            ).str
+            assert relation is not None  # 断言：relation不为空
+            # 关系三元组
+            triple = relation[2:-2].split("', '")
+            for ent in [(triple[0]), (triple[2])]:
+                ent_hash = ENT_NAMESPACE + "-" + get_sha256(ent)
+                if ent_hash in existed_nodes:  # 该实体需在KG中存在
+                    if ent_hash not in ent_sim_scores:  # 尚未记录的实体
+                        ent_sim_scores[ent_hash] = []
+                    ent_sim_scores[ent_hash].append(similarity)
 
-        ent_scores = {}  # 记录实体的平均相似度
-        for hash_key, item in ent_sim_scores.items():
-            idx = self.igraph_name2idx[hash_key]
-            ent = item[0]
-            scores = item[1]
+        ent_mean_scores = {}  # 记录实体的平均相似度
+        for ent_hash, scores in ent_sim_scores.items():
             # 先对相似度进行累加，然后与实体计数相除获取最终权重
-            ent_weights[idx] = np.sum(scores) / self.ent_appear_cnt[hash_key]
+            ent_weights[ent_hash] = (
+                float(np.sum(scores)) / self.ent_appear_cnt[ent_hash]
+            )
             # 记录实体的平均相似度，用于后续的top_k筛选
-            ent_scores[idx] = float(np.mean(scores))
+            ent_mean_scores[ent_hash] = float(np.mean(scores))
         del ent_sim_scores
+
+        ent_weights_max = max(ent_weights.values())
+        ent_weights_min = min(ent_weights.values())
+        down_edge = global_config["qa"]["params"]["paragraph_node_weight"]
+        # 缩放取值区间至[down_edge, 1]
+        for ent_hash, score in ent_weights.items():
+            # 缩放相似度
+            ent_weights[ent_hash] = (
+                (score - ent_weights_min)
+                * (1 - down_edge)
+                / (ent_weights_max - ent_weights_min)
+            ) + down_edge
 
         # 取平均相似度的top_k实体
         top_k = global_config["qa"]["params"]["ent_filter_top_k"]
-        if len(ent_scores) > top_k:
+        if len(ent_mean_scores) > top_k:
             # 从大到小排序，取后len - k个
-            ent_scores = dict(
-                sorted(ent_scores.items(), key=lambda x: x[1], reverse=True)[top_k:]
-            )
-            for idx, _ in ent_scores.items():
-                # 将被淘汰的实体节点权重置为0
-                ent_weights[idx] = 0
-        assert np.count_nonzero(ent_weights) == len(
-            ent_scores.keys()
-        )  # 断言：权重非零的实体节点数量应与top_k相等
-        del top_k, ent_scores
+            ent_mean_scores = {
+                k: v
+                for k, v in sorted(
+                    ent_mean_scores.items(), key=lambda item: item[1], reverse=True
+                )
+            }
+            for ent_hash, _ in ent_mean_scores.items():
+                # 删除被淘汰的实体节点权重设置
+                del ent_weights[ent_hash]
+        del top_k, ent_mean_scores
 
-        # 以下部分处理文段权重
+        # 以下部分处理文段权重pg_weights
 
         # 将搜索结果中文段的相似度归一化作为权重
-        pg_sim_scores = []
-        pg_idxs = []
-        pg_sim_score_max = 1.0
-        pg_sim_score_min = 0.0
+        pg_sim_scores = {}
+        pg_sim_score_max = 0.0
+        pg_sim_score_min = 1.0
         for pg_hash, similarity in paragraph_search_result:
             # 查找最大和最小值
             pg_sim_score_max = max(pg_sim_score_max, similarity)
             pg_sim_score_min = min(pg_sim_score_min, similarity)
-            pg_sim_scores.append(similarity)
-            pg_idxs.append(self.igraph_name2idx[pg_hash])
+            pg_sim_scores[pg_hash] = similarity
 
         # 归一化
-        pg_sim_scores = np.array(pg_sim_scores)
-        pg_sim_scores = (pg_sim_scores - pg_sim_score_min) / (
-            pg_sim_score_max - pg_sim_score_min
-        )
+        for pg_hash, similarity in pg_sim_scores.items():
+            # 归一化相似度
+            pg_sim_scores[pg_hash] = (similarity - pg_sim_score_min) / (
+                pg_sim_score_max - pg_sim_score_min
+            )
         del pg_sim_score_max, pg_sim_score_min
 
-        for pg_idx, score in zip(pg_idxs, pg_sim_scores):
-            pg_weights[pg_idx] = (
+        for pg_hash, score in pg_sim_scores.items():
+            pg_weights[pg_hash] = (
                 score * global_config["qa"]["params"]["paragraph_node_weight"]
             )  # 文段权重 = 归一化相似度 * 文段节点权重参数
+        del pg_sim_scores
 
         # 最终权重数据 = 实体权重 + 文段权重
-        node_weights = ent_weights + pg_weights
+        ppr_node_weights = {
+            k: v for d in [ent_weights, pg_weights] for k, v in d.items()
+        }
+        del ent_weights, pg_weights
 
         # PersonalizedPageRank
-        reset_prob = np.where(
-            np.isnan(node_weights) | (node_weights < 0), 0, node_weights
-        )
-        pagerank_scores = self.graph.personalized_pagerank(
-            vertices=range(len(self.igraph_name2idx)),
-            damping=global_config["qa"]["params"]["ppr_damping"],
-            directed=False,
-            weights="weight",
-            reset=reset_prob,
-            implementation="prpack",
+        ppr_res = nx.pagerank(
+            self.graph,
+            alpha=global_config["qa"]["params"]["ppr_damping"],
+            personalization=ppr_node_weights,
+            weight="weight",
         )
 
         # 获取最终结果
         # 从搜索结果中提取文段节点的结果
-        passage_node_idxs = [
-            self.igraph_name2idx[PG_NAMESPACE + "-" + pg_hash]
-            for pg_hash in self.stored_paragraph_hashes
+        passage_node_res = [
+            (node_key, score)
+            for node_key, score in ppr_res.items()
+            if node_key.startswith(PG_NAMESPACE)
         ]
-        passage_node_res = [(idx, pagerank_scores[idx]) for idx in passage_node_idxs]
+        del ppr_res
 
         # 排序：按照分数从大到小
-        passage_node_res = sorted(passage_node_res, key=lambda x: x[1], reverse=True)
+        passage_node_res = sorted(
+            passage_node_res, key=lambda item: item[1], reverse=True
+        )
 
-        # 获取文段哈希键
-        sorted_doc_hashes = [
-            self.graph.vs[idx]["name"] for (idx, _) in passage_node_res
-        ]
+        return passage_node_res
 
-        # 转换为文段哈希键和分数的列表
-        res = [
-            (score[0], hash_key, score[1])
-            for hash_key, score in zip(sorted_doc_hashes, passage_node_res)
-        ]
+    def draw_graph(self):
+        """将KG图可视化输出"""
+        # TODO: 添加图可视化功能
+        # 输出设置
+        # plot_config = {
+        #    "backend": "matplotlib",
+        #    "vertex_size": 2,
+        #    "vertex_label_size": 2,
+        #    "vertex_label_dist": 1.8,
+        #    "edge_arrow_size": 2,
+        #    "edge_arrow_width": 1,
+        #    "vertex_color": "blue",
+        #    "vertex_label": self.graph.vs["content"],
+        #    "edge_width": 0.1,
+        #    "edge_color": "black",
+        #    "bbox": (0, 0, 1280, 1280),
+        #    "margin": 10,
+        # }
 
-        return res
+        nx.draw(
+            self.graph,
+            node_size=10,
+            width=0.5,
+            with_labels=False,
+        )
+        plt.show()
