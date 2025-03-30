@@ -10,4 +10,6 @@ networkx==3.4.2
 scipy==1.15.2
 matplotlib==3.10.1
 jsonlines==4.0.0
+cython==3.0.12
+setuptools==78.1.0
 ruff==0.11.1

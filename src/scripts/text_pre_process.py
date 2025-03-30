@@ -9,6 +9,7 @@ paragraphs = []
 paragraph = ""
 for line in raw.split("\n"):
     if line.strip() == "":
+        # 有空行，表示段落结束
         if paragraph != "":
             paragraphs.append(paragraph)
             paragraph = ""

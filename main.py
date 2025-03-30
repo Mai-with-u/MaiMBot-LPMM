@@ -10,6 +10,7 @@ from src.qa_manager import QAManager
 from src.kg_manager import KGManager
 from global_logger import logger
 from src.utils.hash import get_sha256
+from src.utils.visualize_graph import draw_graph_and_show
 
 
 def hash_deduplicate(
@@ -122,7 +123,7 @@ def process_instruction(
                     break
                 if question == "":
                     continue
-                qa_manager.process_query(question)
+                qa_manager.answer_question(question)
         case "activate test":
             logger.info("激活度测试")
             while True:
@@ -138,7 +139,7 @@ def process_instruction(
         case "export graph-svg":
             logger.info("正在保存KG为svg文件")
             # 将KG输出到svg文件
-            kg_manager.draw_graph()
+            draw_graph_and_show(kg_manager.graph)
         case _:
             print(f"无效指令：{inst}")
 
@@ -172,6 +173,9 @@ def main():
     except Exception as e:
         logger.error("从文件加载KG时发生错误：{}".format(e))
     logger.info("KG加载完成")
+
+    logger.info(f"KG节点数量：{len(kg_manager.graph.nodes)}")
+    logger.info(f"KG边数量：{len(kg_manager.graph.edges)}")
 
     # 数据比对：Embedding库与KG的段落hash集合
     for pg_hash in kg_manager.stored_paragraph_hashes:
@@ -223,4 +227,9 @@ def main():
 
 
 if __name__ == "__main__":
+    # 尝试导入quick_algo
+    try:
+        import quick_algo
+    except ImportError:
+        logger.warning("未找到quick_algo库，无法使用quick_algo算法")
     main()

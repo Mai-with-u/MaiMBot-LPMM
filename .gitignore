@@ -7,3 +7,8 @@
 
 /test.py
 /RAG.png
+
+/lib/quick_algo/build/
+/lib/quick_algo/cython_debug/
+/lib/quick_algo/pagerank.c
+/lib/quick_algo/pagerank.cp312-win_amd64.pyd
