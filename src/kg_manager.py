@@ -3,13 +3,12 @@ import os
 import time
 from typing import Dict, List, Tuple
 
-import matplotlib
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
 import tqdm
 
+from lib import quick_algo
 from .utils.hash import get_sha256
 from .embedding_store import EmbeddingManager, EmbeddingStoreItem
 from .config import (
@@ -22,9 +21,6 @@ from .config import (
 )
 
 from global_logger import logger
-
-matplotlib.rcParams["font.family"] = "Microsoft YaHei"
-
 
 class KGManager:
     def __init__(self):
@@ -209,8 +205,6 @@ class KGManager:
         existed_nodes = [str(node) for node in self.graph.nodes]
         existed_edges = [str((edge[0], edge[1])) for edge in self.graph.edges]
 
-        # TODO: 边的创建时间，用于遗忘机制
-        # TODO: 节点创建时间，用于遗忘机制
         now_time = time.time()
 
         # 更新图结构
@@ -228,24 +222,13 @@ class KGManager:
                             "create_time": now_time,
                             "update_time": now_time,
                         },
-                    ),
-                    (
-                        src_tgt[1],
-                        src_tgt[0],
-                        {
-                            "weight": weight,
-                            "create_time": now_time,
-                            "update_time": now_time,
-                        },
-                    ),
+                    )
                 ]
                 self.graph.add_edges_from(new_edges)
             else:
                 # 已存在的边
                 self.graph.edges[src_tgt[0], src_tgt[1]]["weight"] += weight
                 self.graph.edges[src_tgt[0], src_tgt[1]]["update_time"] = now_time
-                self.graph.edges[src_tgt[1], src_tgt[0]]["weight"] += weight
-                self.graph.edges[src_tgt[1], src_tgt[0]]["update_time"] = now_time
 
         # 更新新节点属性
         for src_tgt in node_to_node.keys():
@@ -265,8 +248,9 @@ class KGManager:
                             node_hash
                         ]
                         assert isinstance(node, EmbeddingStoreItem)
+                        content = node.str.replace("\n", " ")
                         self.graph.nodes[node_hash]["content"] = (
-                            node.str if len(node.str) > 8 else node.str[:8] + "..."
+                            content if len(content) < 8 else content[:8] + "..."
                         )
                         self.graph.nodes[node_hash]["type"] = "pg"
 
@@ -360,15 +344,20 @@ class KGManager:
 
         ent_weights_max = max(ent_weights.values())
         ent_weights_min = min(ent_weights.values())
-        down_edge = global_config["qa"]["params"]["paragraph_node_weight"]
-        # 缩放取值区间至[down_edge, 1]
-        for ent_hash, score in ent_weights.items():
-            # 缩放相似度
-            ent_weights[ent_hash] = (
-                (score - ent_weights_min)
-                * (1 - down_edge)
-                / (ent_weights_max - ent_weights_min)
-            ) + down_edge
+        if ent_weights_max == ent_weights_min:
+            # 只有一个相似度，则全赋值为1
+            for ent_hash in ent_weights.keys():
+                ent_weights[ent_hash] = 1.0
+        else:
+            down_edge = global_config["qa"]["params"]["paragraph_node_weight"]
+            # 缩放取值区间至[down_edge, 1]
+            for ent_hash, score in ent_weights.items():
+                # 缩放相似度
+                ent_weights[ent_hash] = (
+                    (score - ent_weights_min)
+                    * (1 - down_edge)
+                    / (ent_weights_max - ent_weights_min)
+                ) + down_edge
 
         # 取平均相似度的top_k实体
         top_k = global_config["qa"]["params"]["ent_filter_top_k"]
@@ -418,18 +407,18 @@ class KGManager:
         del ent_weights, pg_weights
 
         # PersonalizedPageRank
-        ppr_res = nx.pagerank(
+        ppr_res = quick_algo.pagerank(
             self.graph,
+            personalized=ppr_node_weights,
+            max_iter=1000,
             alpha=global_config["qa"]["params"]["ppr_damping"],
-            personalization=ppr_node_weights,
-            weight="weight",
         )
 
         # 获取最终结果
         # 从搜索结果中提取文段节点的结果
         passage_node_res = [
             (node_key, score)
-            for node_key, score in ppr_res.items()
+            for node_key, score in ppr_res
             if node_key.startswith(PG_NAMESPACE)
         ]
         del ppr_res
@@ -439,31 +428,4 @@ class KGManager:
             passage_node_res, key=lambda item: item[1], reverse=True
         )
 
-        return passage_node_res
-
-    def draw_graph(self):
-        """将KG图可视化输出"""
-        # TODO: 添加图可视化功能
-        # 输出设置
-        # plot_config = {
-        #    "backend": "matplotlib",
-        #    "vertex_size": 2,
-        #    "vertex_label_size": 2,
-        #    "vertex_label_dist": 1.8,
-        #    "edge_arrow_size": 2,
-        #    "edge_arrow_width": 1,
-        #    "vertex_color": "blue",
-        #    "vertex_label": self.graph.vs["content"],
-        #    "edge_width": 0.1,
-        #    "edge_color": "black",
-        #    "bbox": (0, 0, 1280, 1280),
-        #    "margin": 10,
-        # }
-
-        nx.draw(
-            self.graph,
-            node_size=10,
-            width=0.5,
-            with_labels=False,
-        )
-        plt.show()
+        return passage_node_res, ppr_node_weights
