@@ -24,7 +24,7 @@ shutdown_event = Event()
 
 def process_single_text(pg_hash, raw_data, llm_client_list):
     """处理单个文本的函数，用于线程池"""
-    temp_file_path = os.path.join(TEMP_DIR, f"{pg_hash}.json")
+    temp_file_path = f"{TEMP_DIR}/{pg_hash}.json"
     
     # 使用文件锁检查和读取缓存文件
     with file_lock:
@@ -63,6 +63,9 @@ def process_single_text(pg_hash, raw_data, llm_client_list):
                 # 如果保存失败，确保不会留下损坏的文件
                 if os.path.exists(temp_file_path):
                     os.remove(temp_file_path)
+                # 设置shutdown_event以终止程序
+                shutdown_event.set()
+                return None, pg_hash
         return doc_item, None
 
 def signal_handler(signum, frame):
