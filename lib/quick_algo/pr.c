@@ -36,7 +36,45 @@ double *pagerank(
 {
     int num_threads = omp_get_max_threads(); // 获取最大线程数
 
-    { // 个性化向量归一化
+    // 重新排列边顺序，按照先起始节点，后结束节点的顺序排列
+    // 该操作将相同源点的边放在一起，减少跨越内存页的访问
+    qsort(edges, num_edges, sizeof(struct Edge), compare_edges);
+
+    {
+        // 将同源边根据权重转化为概率分布
+        // 转化后，同源边的权重之和为1
+        double sum_weight;
+        long long now_src;
+        for (long long i_start = 0; i_start < num_edges; i_start++)
+        {
+            now_src = edges[i_start].src;       // 当前源点
+            sum_weight = edges[i_start].weight; // 初始化权重之和为当前边的权重
+            // 寻找其它同源边
+            for (long long i_end = i_start + 1; i_end <= num_edges; i_end++)
+            {
+                if (i_end == num_edges || edges[i_end].src != now_src)
+                {
+                    // 若结束指针指向了不同的源点，或者已经到达了最后一条边
+                    // 则将区间内的边的权重进行归一化
+                    // 归一化后的权重为：weight[i] = weight[i] / sum_weight
+                    for (long long i = i_start; i < i_end; i++)
+                    {
+                        edges[i].weight /= sum_weight;
+                    }
+                    // 更新起始指针到结束指针
+                    i_start = i_end;
+                }
+                else
+                {
+                    // 否则，继续累加权重
+                    sum_weight += edges[i_end].weight;
+                }
+            }
+        }
+    }
+
+    {
+        // 个性化向量归一化
         double max_value = 0.0L;
         double min_value = 1.0L;
         for (long long i = 0; i < num_nodes; i++)
@@ -67,47 +105,12 @@ double *pagerank(
         }
     }
 
-    { // 边权重归一化
-        double max_value = 0.0L;
-        double min_value = 1.0L;
-        for (long long i = 0; i < num_edges; i++)
-        {
-            if (edges[i].weight > max_value)
-            {
-                max_value = edges[i].weight;
-            }
-            if (edges[i].weight < min_value)
-            {
-                min_value = edges[i].weight;
-            }
-        }
-        if (max_value == min_value)
-        {
-            // 如果所有值相同，则将所有值设置为1.0/num_edges
-            for (long long i = 0; i < num_edges; i++)
-            {
-                edges[i].weight = 1.0L / num_edges;
-            }
-        }
-        else
-        {
-            for (long long i = 0; i < num_edges; i++)
-            {
-                edges[i].weight = (edges[i].weight - min_value) / (max_value - min_value);
-            }
-        }
-    }
-
     // 初始化Score向量
     double *score = (double *)calloc(num_nodes, sizeof(double)); // 初始化Score向量为0
     for (long long i = 0; i < num_nodes; i++)
     {
         score[i] = personalization[i];
     }
-
-    // 重新排列边顺序，按照先起始节点，后结束节点的顺序排列
-    // 该操作将相同源点的边放在一起，减少跨越内存页的访问
-    qsort(edges, num_edges, sizeof(struct Edge), compare_edges);
 
     // 迭代计算PageRank
     // 对于每轮迭代：
