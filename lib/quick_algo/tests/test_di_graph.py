@@ -7,28 +7,33 @@ class TestDiGraph:
         print("\nRunning TestDiGraph - 1")
 
         graph = DiGraph()
-        # 添加单个节点
+        # 测试空图
         print("TestDiGraph - 1 - CP1")
+        assert graph.get_node_list() == []
+        assert graph.get_edge_list() == []
+
+        # 添加单个节点
+        print("TestDiGraph - 1 - CP2")
         graph.add_node(DiNode("node1", {"update_time": 100}))
-        assert "node1" in graph
+        assert graph.get_node_list() == ["node1"]
         assert "update_time" in graph["node1"]
         # 添加多个节点
-        print("TestDiGraph - 1 - CP2")
+        print("TestDiGraph - 1 - CP3")
         graph.add_nodes_from([DiNode("node2"), DiNode("node3")])
         assert "node2" in graph
         assert "node3" in graph
         assert graph["node2"].attr == {}
 
         # 重复添加节点
-        print("TestDiGraph - 1 - CP3")
+        print("TestDiGraph - 1 - CP4")
         try:
             graph.add_node(DiNode("node1", {"update_time": 200}))
             assert False  # 如果没有抛出异常，则测试失败
-        except ValueError:
+        except KeyError:
             pass
 
         # 修改节点属性
-        print("TestDiGraph - 1 - CP4")
+        print("TestDiGraph - 1 - CP5")
         updated_node = graph["node1"]
         assert isinstance(updated_node, DiNode)
         updated_node["update_time"] = 200
@@ -36,11 +41,19 @@ class TestDiGraph:
         assert graph["node1"]["update_time"] == 200
 
         # 删除节点
-        print("TestDiGraph - 1 - CP5")
+        print("TestDiGraph - 1 - CP6")
         del graph["node2"]
         assert "node2" not in graph
         try:
             _node = graph["node2"]
+            assert False  # 如果没有抛出异常，则测试失败
+        except KeyError:
+            pass
+
+        # 删除不存在的节点
+        print("TestDiGraph - 1 - CP7")
+        try:
+            del graph["N/A"]
             assert False  # 如果没有抛出异常，则测试失败
         except KeyError:
             pass
@@ -76,7 +89,7 @@ class TestDiGraph:
                 DiEdge("node1", "node2", {"weight": 1.0, "update_time": 200})
             )
             assert False  # 如果没有抛出异常，则测试失败
-        except ValueError:
+        except KeyError:
             pass
 
         # 修改边属性

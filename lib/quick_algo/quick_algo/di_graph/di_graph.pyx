@@ -129,7 +129,7 @@ cdef class DiGraph:
         elif isinstance(item, tuple) and len(item) == 2:
             return self.get_edge(item)
         else:
-            raise ValueError("Invalid key type. Use node name or edge (src, dst) tuple.")
+            raise TypeError("Invalid key type. Use node name or edge (src, dst) tuple.")
 
     def __delitem__(self, key):
         if isinstance(key, str):
@@ -137,7 +137,7 @@ cdef class DiGraph:
         elif isinstance(key, tuple) and len(key) == 2:
             self.remove_edge(key)
         else:
-            raise ValueError("Invalid key type. Use node name or edge (src, dst) tuple.")
+            raise TypeError("Invalid key type. Use node name or edge (src, dst) tuple.")
 
     def __contains__(self, item):
         if isinstance(item, str):
@@ -145,7 +145,7 @@ cdef class DiGraph:
         elif isinstance(item, tuple) and len(item) == 2:
             return item in self.edge_name2idx_map
         else:
-            raise ValueError("Invalid key type. Use node name or edge (src, dst) tuple.")
+            raise TypeError("Invalid key type. Use node name or edge (src, dst) tuple.")
 
     def _direct_add_edge(self, edge: DiEdge):
         """
@@ -161,7 +161,7 @@ cdef class DiGraph:
         # 添加边
         res = self.graph.add_edge(src_idx, dst_idx, edge.attr["weight"])
         if res != 0:
-            raise ValueError(f"Failed to add edge {edge.src}->{edge.dst} to the C-graph.")
+            raise RuntimeError(f"Failed to add edge {edge.src}->{edge.dst} to the C-graph.")
 
         # 更新边属性
         key = (edge.src, edge.dst)
@@ -175,7 +175,7 @@ cdef class DiGraph:
         """
         # 检查边是否已经存在
         if (edge.src, edge.dst) in self.edge_name2idx_map:
-            raise ValueError(f"Edge {edge.src}->{edge.dst} already exists in the graph.")
+            raise KeyError(f"Edge {edge.src}->{edge.dst} already exists in the graph.")
 
         # 收集节点
         new_nodes = set()
@@ -202,7 +202,7 @@ cdef class DiGraph:
         for edge in edges:
             # 检查边是否已经存在
             if (edge.src, edge.dst) in self.edge_name2idx_map:
-                raise ValueError(f"Edge {edge.src}->{edge.dst} already exists in the graph.")
+                raise KeyError(f"Edge {edge.src}->{edge.dst} already exists in the graph.")
             if edge.src not in self.node_name2idx_map:
                 new_nodes.add(edge.src)
             if edge.dst not in self.node_name2idx_map:
@@ -224,14 +224,14 @@ cdef class DiGraph:
         """
         # 检查边是否存在
         if (edge.src, edge.dst) not in self.edge_name2idx_map:
-            raise ValueError(f"Edge {edge.src}->{edge.dst} does not exist in the graph.")
+            raise KeyError(f"Edge {edge.src}->{edge.dst} does not exist in the graph.")
         # 获取索引
         src_idx = self.node_name2idx_map[edge.src]
         dst_idx = self.node_name2idx_map[edge.dst]
         # 获取边结构体指针
         cdef CDiEdge *edge_ptr = self.graph.get_edge(src_idx, dst_idx)
         if edge_ptr is NULL:
-            raise ValueError(f"Edge {edge.src}->{edge.dst} does not exist in the C-graph.")
+            raise RuntimeError(f"Edge {edge.src}->{edge.dst} does not exist in the C-graph.")
         # 更新权重
         edge_ptr.weight = edge.attr["weight"]
         # 更新边属性
@@ -246,13 +246,14 @@ cdef class DiGraph:
         # 检查边是否存在
         src, dst = edge
         if (src, dst) not in self.edge_name2idx_map:
-            raise ValueError(f"Edge {src}->{dst} does not exist in the graph.")
+            raise KeyError(f"Edge {src}->{dst} does not exist in the graph.")
 
         # 获取索引
         src_idx = self.node_name2idx_map[src]
         dst_idx = self.node_name2idx_map[dst]
         # 删除边
-        self.graph.remove_edge(src_idx, dst_idx)
+        if self.graph.remove_edge(src_idx, dst_idx) != 0:
+            raise RuntimeError(f"Failed to remove edge {src}->{dst} from the C-graph.")
 
         # 删除边属性
         key = (src, dst)
@@ -268,12 +269,12 @@ cdef class DiGraph:
         :return:
         """
         if node.name in self.node_name2idx_map:
-            raise ValueError(f"Node {node.name} already exists in the graph.")
+            raise KeyError(f"Node {node.name} already exists in the graph.")
 
         # 创建节点
         cdef long long idx = self.graph.add_node()
-        if idx == -1:
-            raise ValueError(f"Failed to add node {node.name} to the C-graph.")
+        if idx < 0:
+            raise RuntimeError(f"Failed to add node {node.name} to the C-graph.")
         # 更新索引映射&属性映射
         self.node_name2idx_map[node.name] = idx
         self.name2attr_map[node.name] = node.attr
@@ -287,14 +288,14 @@ cdef class DiGraph:
         # 检查节点是否已经存在
         for node in nodes:
             if node.name in self.node_name2idx_map:
-                raise ValueError(f"Node {node.name} already exists in the graph.")
+                raise KeyError(f"Node {node.name} already exists in the graph.")
 
         cdef long long idx
         for node in nodes:
             # 创建节点
             idx = self.graph.add_node()
-            if idx == -1:
-                raise ValueError(f"Failed to add node {node.name} to the C-graph.")
+            if idx < 0:
+                raise RuntimeError(f"Failed to add node {node.name} to the C-graph.")
             # 更新索引映射&属性映射
             self.node_name2idx_map[node.name] = idx
             self.name2attr_map[node.name] = node.attr
@@ -307,7 +308,7 @@ cdef class DiGraph:
         """
         # 检查节点是否存在
         if node.name not in self.node_name2idx_map:
-            raise ValueError(f"Node \"{node.name}\" does not exist in the graph.")
+            raise KeyError(f"Node \"{node.name}\" does not exist in the graph.")
         # 获取索引
         #idx = self.node_name2idx_map[node.name]
         # 更新节点属性
@@ -321,12 +322,12 @@ cdef class DiGraph:
         """
         # 检查节点是否存在
         if node_name not in self.node_name2idx_map:
-            raise ValueError(f"Node \"{node_name}\" does not exist in the graph.")
+            raise KeyError(f"Node \"{node_name}\" does not exist in the graph.")
         # 获取索引
         idx = self.node_name2idx_map[node_name]
         # 删除节点
         if self.graph.remove_node(idx) != 0:
-            raise ValueError(f"Failed to remove node {node_name} from the C-graph.")
+            raise RuntimeError(f"Failed to remove node {node_name} from the C-graph.")
 
         # 删除节点属性
         del self.name2attr_map[node_name]
