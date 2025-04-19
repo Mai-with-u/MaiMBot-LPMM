@@ -3,12 +3,12 @@ import os
 import time
 from typing import Dict, List, Tuple
 
-import networkx as nx
 import numpy as np
 import pandas as pd
 import tqdm
+from quick_algo import di_graph, pagerank
 
-from lib import quick_algo
+
 from .utils.hash import get_sha256
 from .embedding_store import EmbeddingManager, EmbeddingStoreItem
 from .config import (
@@ -30,11 +30,11 @@ class KGManager:
         # 实体出现次数
         self.ent_appear_cnt = dict()
         # KG
-        self.graph = nx.DiGraph()
+        self.graph = di_graph.DiGraph()
 
         # 持久化相关
         self.dir_path = global_config["persistence"]["rag_data_dir"]
-        self.graph_data_path = self.dir_path + "/" + RAG_GRAPH_NAMESPACE + ".graphmlz"
+        self.graph_data_path = self.dir_path + "/" + RAG_GRAPH_NAMESPACE + ".graphml"
         self.ent_cnt_data_path = (
             self.dir_path + "/" + RAG_ENT_CNT_NAMESPACE + ".parquet"
         )
@@ -47,7 +47,7 @@ class KGManager:
             os.makedirs(self.dir_path, exist_ok=True)
 
         # 保存KG
-        nx.write_graphml(self.graph, path=self.graph_data_path, encoding="utf-8")
+        di_graph.save_to_file(self.graph, self.graph_data_path)
 
         # 保存实体计数到文件
         ent_cnt_df = pd.DataFrame(
@@ -82,9 +82,7 @@ class KGManager:
         )
 
         # 加载KG
-        self.graph = nx.read_graphml(self.graph_data_path)
-        if not isinstance(self.graph, nx.DiGraph):
-            raise Exception("KG图文件存在问题")
+        self.graph = di_graph.load_from_file(self.graph_data_path)
 
     def _build_edges_between_ent(
         self,
@@ -202,8 +200,8 @@ class KGManager:
             - 若是已存在的边，则更新边的权重
         2. 更新新节点的属性
         """
-        existed_nodes = [str(node) for node in self.graph.nodes]
-        existed_edges = [str((edge[0], edge[1])) for edge in self.graph.edges]
+        existed_nodes = self.graph.get_node_list()
+        existed_edges = [str((edge[0], edge[1])) for edge in self.graph.get_edge_list()]
 
         now_time = time.time()
 
@@ -213,8 +211,8 @@ class KGManager:
             # 检查边是否已存在
             if key not in existed_edges:
                 # 新边
-                new_edges = [
-                    (
+                self.graph.add_edge(
+                    di_graph.DiEdge(
                         src_tgt[0],
                         src_tgt[1],
                         {
@@ -223,12 +221,13 @@ class KGManager:
                             "update_time": now_time,
                         },
                     )
-                ]
-                self.graph.add_edges_from(new_edges)
+                )
             else:
                 # 已存在的边
-                self.graph.edges[src_tgt[0], src_tgt[1]]["weight"] += weight
-                self.graph.edges[src_tgt[0], src_tgt[1]]["update_time"] = now_time
+                edge_item = self.graph[src_tgt[0], src_tgt[1]]
+                edge_item["weight"] += weight
+                edge_item["update_time"] = now_time
+                self.graph.update_edge(edge_item)
 
         # 更新新节点属性
         for src_tgt in node_to_node.keys():
@@ -240,8 +239,11 @@ class KGManager:
                             node_hash
                         ]
                         assert isinstance(node, EmbeddingStoreItem)
-                        self.graph.nodes[node_hash]["content"] = node.str
-                        self.graph.nodes[node_hash]["type"] = "ent"
+                        node_item = self.graph[node_hash]
+                        node_item["content"] = node.str
+                        node_item["type"] = "ent"
+                        node_item["create_time"] = now_time
+                        self.graph.update_node(node_item)
                     elif node_hash.startswith(PG_NAMESPACE):
                         # 新增文段节点
                         node = embedding_manager.paragraphs_embedding_store.store[
@@ -249,10 +251,13 @@ class KGManager:
                         ]
                         assert isinstance(node, EmbeddingStoreItem)
                         content = node.str.replace("\n", " ")
-                        self.graph.nodes[node_hash]["content"] = (
+                        node_item = self.graph[node_hash]
+                        node_item["content"] = (
                             content if len(content) < 8 else content[:8] + "..."
                         )
-                        self.graph.nodes[node_hash]["type"] = "pg"
+                        node_item["type"] = "pg"
+                        node_item["create_time"] = now_time
+                        self.graph.update_node(node_item)
 
     def build_kg(
         self,
@@ -305,7 +310,7 @@ class KGManager:
             embed_manager: EmbeddingManager对象
         """
         # 图中存在的节点总集
-        existed_nodes = [str(node) for node in self.graph.nodes]
+        existed_nodes = self.graph.get_node_list()
 
         # 准备PPR使用的数据
         # 节点权重：实体
@@ -407,10 +412,10 @@ class KGManager:
         del ent_weights, pg_weights
 
         # PersonalizedPageRank
-        ppr_res = quick_algo.pagerank(
+        ppr_res = pagerank.run_pagerank(
             self.graph,
-            personalized=ppr_node_weights,
-            max_iter=1000,
+            personalization=ppr_node_weights,
+            max_iter=100,
             alpha=global_config["qa"]["params"]["ppr_damping"],
         )
 
@@ -418,7 +423,7 @@ class KGManager:
         # 从搜索结果中提取文段节点的结果
         passage_node_res = [
             (node_key, score)
-            for node_key, score in ppr_res
+            for node_key, score in ppr_res.items()
             if node_key.startswith(PG_NAMESPACE)
         ]
         del ppr_res

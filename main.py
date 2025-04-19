@@ -152,8 +152,7 @@ def process_instruction(
 
 
 def main():
-    logger.info("----启动Mai-LPMM Demo----\n")
-
+    logger.info("----启动Mai-LPMM Demo----")
     logger.info("创建LLM客户端")
     llm_client_list = dict()
     for key in global_config["llm_providers"]:
@@ -163,7 +162,7 @@ def main():
         )
 
     # 初始化Embedding库
-    embed_manager = embed_manager = EmbeddingManager(
+    embed_manager = EmbeddingManager(
         llm_client_list[global_config["embedding"]["provider"]]
     )
     logger.info("正在从文件加载Embedding库")
@@ -181,8 +180,8 @@ def main():
         logger.error("从文件加载KG时发生错误：{}".format(e))
     logger.info("KG加载完成")
 
-    logger.info(f"KG节点数量：{len(kg_manager.graph.nodes)}")
-    logger.info(f"KG边数量：{len(kg_manager.graph.edges)}")
+    logger.info(f"KG节点数量：{len(kg_manager.graph.get_node_list())}")
+    logger.info(f"KG边数量：{len(kg_manager.graph.get_edge_list())}")
 
     # 数据比对：Embedding库与KG的段落hash集合
     for pg_hash in kg_manager.stored_paragraph_hashes:
