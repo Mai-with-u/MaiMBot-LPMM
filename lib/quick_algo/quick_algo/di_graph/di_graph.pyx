@@ -1,3 +1,5 @@
+# distutils: language=c++
+
 import os
 import xml.etree.ElementTree as et
 from xml.dom import minidom

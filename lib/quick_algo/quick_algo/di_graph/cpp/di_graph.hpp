@@ -1,11 +1,8 @@
-#ifndef PAGERANK_H
-#define PAGERANK_H
+#ifndef DI_GRAPH_H
+#define DI_GRAPH_H
 
 #define DEBUG 1 // 调试模式
 
-#include <unordered_map>
-#include <string>
-#include <exception>
 #include <vector>
 #include <queue>
 
@@ -87,4 +84,4 @@ public:
     ~CDiEdge();
 };
 
-#endif // PAGERANK_H
+#endif // DI_GRAPH_H

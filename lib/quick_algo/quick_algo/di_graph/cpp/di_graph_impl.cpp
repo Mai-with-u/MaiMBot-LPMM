@@ -1,7 +1,8 @@
 #define __USE_MINGW_ANSI_STDIO 1
-#include "di_graph.hpp"
+#include <stdio.h>
 #include <exception>
 #include <malloc.h>
+#include "di_graph.hpp"
 
 CDiNode::CDiNode(long long id)
 {

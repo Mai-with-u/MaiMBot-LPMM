@@ -1,7 +1,6 @@
-from libcpp.vector cimport vector
+# distutils: language=c++
 
-cdef extern from "cpp/di_graph_impl.cpp":
-    pass
+from libcpp.vector cimport vector
 
 cdef extern from "cpp/di_graph.hpp":
     cdef cppclass CDiNode:
