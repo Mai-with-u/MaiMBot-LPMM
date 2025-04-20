@@ -1,34 +1,14 @@
 #define __USE_MINGW_ANSI_STDIO 1
-#include "stdio.h"
-#include "malloc.h"
-#include "string.h"
-#include "math.h"
+#include <stdio.h>
 #include <stdexcept>
-#include "../../di_graph/cpp/di_graph.hpp"
+#include <malloc.h>
+#include <math.h>
 
-#define _MP // 启用多线程优化
-//  #define _SIMD // 启用SIMD优化
+#include "pagerank.hpp"
 
-// 以下头文件用于多线程优化
 #ifdef _MP
 #include "omp.h"
 #endif
-// 以下头文件用于SIMD优化
-#ifdef _SIMD
-#include "immintrin.h"
-#endif
-
-struct EdgeWeight
-{
-    long long src; // 源节点ID
-    double weight; // 权重
-};
-
-struct EdgeList
-{
-    long long edge_num; // 边数量
-    EdgeWeight *edges;  // 边权重列表
-};
 
 /**
  * @brief 释放内存
