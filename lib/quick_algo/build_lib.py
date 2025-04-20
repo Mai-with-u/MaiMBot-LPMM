@@ -2,8 +2,10 @@
 import argparse
 import os
 import logging
+import subprocess
 import sys
 import shutil
+
 
 pyx_modules = [
     "quick_algo/di_graph/di_graph.pyx",
@@ -29,28 +31,30 @@ def init_logger():
 
 def clean_up():
     # 清理构建内容
-    print("Cleaning up build directory...")
+    logger.warning("Cleaning up build directory...")
     build_dirs=["build", "dist", "quick_algo.egg-info"]
 
     for dir_to_del in build_dirs:
         if os.path.exists(dir_to_del):
             shutil.rmtree(dir_to_del)
-            logger.warning(f"Removed {dir_to_del} directory.")
+            logger.info(f"Removed {dir_to_del} directory.")
 
     for pyx_file in pyx_modules:
         # 删除生成的cpp文件
         cythonize_source = pyx_file.replace(".pyx", ".cpp")
         if os.path.exists(cythonize_source):
             os.remove(cythonize_source)
-            logger.warning(f"Removed {cythonize_source} file.")
+            logger.info(f"Removed {cythonize_source} file.")
 
 
 def run_cythonize(force_cythonize):
+    logger.info("Cythonizing source files...")
+
     # 检查是否安装了Cython
     try:
         from Cython.Build import cythonize
     except ImportError:
-        print("Cython is not installed. Please install Cython to run cythonize.")
+        logger.fatal("Cython is not installed. Please install Cython to run cythonize.")
         sys.exit(1)
 
     cythonize(
@@ -60,32 +64,58 @@ def run_cythonize(force_cythonize):
         force=force_cythonize,
     )
 
+    logger.info("Cythonize completed successfully.")
+
 def run_build_dist():
-    print("Building distribution package...")
-    ret = os.system("python setup.py sdist build")
-    if ret != 0:
-        logger.fatal("Failed to build distribution package.")
-        exit(1)
-    else:
+    logger.info("Building distribution package...")
+    # 执行setup.py构建源码分发包
+    try:
+        subprocess.run(
+            [sys.executable, "setup.py", "sdist", "build"],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=os.environ.copy()
+        )
         logger.info("Build distribution package successfully.")
+    except subprocess.CalledProcessError as e:
+        logger.error("Error occurred while building distribution package. Details:\n%s", e.stderr)
+        logger.error(e.stderr)
+        sys.exit(1)
 
 def run_build_wheel_dist():
-    print("Building wheel distribution package...")
-    ret = os.system("python setup.py bdist_wheel")
-    if ret != 0:
-        logger.fatal("Failed to build wheel distribution package.")
-        exit(1)
-    else:
+    logger.info("Building wheel distribution package...")
+    # 执行setup.py构建wheel分发包
+    try:
+        subprocess.run(
+            [sys.executable, "setup.py", "bdist_wheel"],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=os.environ.copy()
+        )
         logger.info("Build wheel distribution package successfully.")
+    except subprocess.CalledProcessError as e:
+        logger.error("Error occurred while building wheel distribution package. Details:\n%s", e.stderr)
+        logger.error(e.stderr)
+        sys.exit(1)
 
 def run_install():
-    print("Installing package...")
-    ret = os.system("python setup.py install")
-    if ret != 0:
-        logger.fatal("Failed to install package.")
-        exit(1)
-    else:
+    logger.info("Installing package...")
+    # 执行setup.py安装QuickAlgo库
+    try:
+        subprocess.run(
+            [sys.executable, "setup.py", "install", "--force"],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=os.environ.copy()
+        )
         logger.info("Install package successfully.")
+    except subprocess.CalledProcessError as e:
+        logger.error("Error occurred while installing package. Details:\n%s", e.stderr)
+        logger.error(e.stderr)
+        sys.exit(1)
 
 
 def main(args):
@@ -118,12 +148,12 @@ if __name__ == "__main__":
     # 检查是否在正确的目录下运行
     if not os.path.exists("setup.py"):
         logger.fatal("Please run this script from the 'lib/quick_algo' directory.")
-        exit(1)
+        sys.exit(1)
 
     # 检查Python版本
     if sys.version_info < (3, 10):
         logger.fatal("Python version 3.10 or higher is required.")
-        exit(1)
+        sys.exit(1)
 
     arg_parser = argparse.ArgumentParser("Build QuickAlgo Distribution")
     arg_parser.add_argument("--cleanup", action="store_true", default=False, help="Cleanup the build directory")
