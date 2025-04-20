@@ -1,0 +1,61 @@
+# 在每次提交后，检查若lib/quick_algo目录下有文件被修改，则运行pytest
+name: QuickAlgo CI
+on:
+  push:
+    paths:
+      - 'lib/quick_algo/**'
+  pull_request:
+    paths:
+      - 'lib/quick_algo/**'
+
+jobs:
+  build-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install build tools (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Ensure MSVC Build Tools (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          echo "MSVC tools will be automatically available on windows-latest"
+
+      - name: Install dependencies
+        run: |
+          pip install cython setuptools pytest numpy scipy networkx
+
+      - name: Build and install
+        run: |
+          cd lib/quick_algo
+          python ./build_lib.py --cleanup --cythonize --install
+          cd ../..
+
+      - name: Run tests and generate report
+        run: |
+          cd lib/quick_algo
+          pytest ./tests --junitxml=pytest-report.xml
+          cd ../..
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report-${{ matrix.os }}
+          path: lib/quick_algo/pytest-report.xml

@@ -11,6 +11,11 @@ from shutil import rmtree
 
 from setuptools import find_packages, setup, Command, Extension
 
+compile_args = [
+    "-fopenmp",
+    "-O3"
+]
+
 ext_modules = [
     Extension(
         "quick_algo.di_graph.di_graph",
@@ -21,6 +26,7 @@ ext_modules = [
         include_dirs=[
             "quick_algo/di_graph"
         ],
+        extra_compile_args=compile_args,
         language="c++",
     ),
     Extension(
@@ -33,6 +39,7 @@ ext_modules = [
             "quick_algo/pagerank",
             "quick_algo/di_graph",
         ],
+        extra_compile_args=compile_args,
         language="c++",
     ),
 ]
@@ -54,7 +61,6 @@ REQUIRED = [
 # What packages are optional?
 EXTRAS = {
     # 'fancy feature': ['django'],
-    "zip": ["gzip"],
 }
 
 # The rest you shouldn't have to touch too much :)

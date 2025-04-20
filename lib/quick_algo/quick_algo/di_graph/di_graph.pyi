@@ -172,11 +172,12 @@ class DiGraph:
         """
         ...
 
-def save_to_file(graph: DiGraph, filename: str):
+def save_to_file(graph: DiGraph, filename: str, enable_zip: bool = False):
     """
     保存图到文件
     :param graph: 图对象
     :param filename: 文件名
+    :param enable_zip: 是否启用压缩
     """
     ...
 

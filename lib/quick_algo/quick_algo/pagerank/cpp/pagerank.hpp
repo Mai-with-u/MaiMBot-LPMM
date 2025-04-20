@@ -1,8 +1,8 @@
 #ifndef PAGERANK_H
 #define PAGERANK_H
 
-#define _MP // 启用多线程优化
-//  #define _SIMD // 启用SIMD优化
+// #define _MP // 启用多线程优化
+//   #define _SIMD // 启用SIMD优化
 
 #include "../../di_graph/cpp/di_graph.hpp"
 
