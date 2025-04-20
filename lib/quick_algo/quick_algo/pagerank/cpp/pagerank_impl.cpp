@@ -51,10 +51,6 @@ double *pagerank(
     double tol                   // 收敛阈值
 )
 {
-#ifdef _MP
-    int num_threads = omp_get_max_threads(); // 获取最大线程数
-#endif
-
     long long node_array_size = graph->nodes->size(); // 节点数量
 
     EdgeList *weight_matrix = (EdgeList *)calloc(node_array_size, sizeof(EdgeList)); // 同目标边权重矩阵

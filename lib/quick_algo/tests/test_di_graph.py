@@ -202,13 +202,22 @@ class TestDiGraph:
         # 保存图
         print("TestDiGraph - 4 - CP2")
         save_to_file(graph, "test_graph.graphml")
+        save_to_file(graph, "test_graph.graphmlz", enable_zip=True)
 
         # 加载图
         print("TestDiGraph - 4 - CP3")
         loaded_graph = load_from_file("test_graph.graphml")
-
         # 检查加载的图是否与原图相同
+        for node_name in graph.get_node_list():
+            assert node_name in loaded_graph
+            assert graph[node_name].attr == loaded_graph[node_name].attr
+        for edge_key in graph.get_edge_list():
+            assert edge_key in loaded_graph
+            assert graph[edge_key].attr == loaded_graph[edge_key].attr
+
         print("TestDiGraph - 4 - CP4")
+        # 检查加载的图是否与原图相同
+        loaded_graph = load_from_file("test_graph.graphmlz")
         for node_name in graph.get_node_list():
             assert node_name in loaded_graph
             assert graph[node_name].attr == loaded_graph[node_name].attr
@@ -219,9 +228,10 @@ class TestDiGraph:
         # 清理（删除保存的文件）
         print("TestDiGraph - 4 - CP5")
         import os
-
         if os.path.exists("test_graph.graphml"):
             os.remove("test_graph.graphml")
+        if os.path.exists("test_graph.graphmlz"):
+            os.remove("test_graph.graphmlz")
 
     def test_clear(self):
         print("\nRunning TestDiGraph - 5")
