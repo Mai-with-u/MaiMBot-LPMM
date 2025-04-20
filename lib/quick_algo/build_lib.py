@@ -69,6 +69,15 @@ def run_build_dist():
     else:
         logger.info("Build distribution package successfully.")
 
+def run_build_wheel_dist():
+    print("Building wheel distribution package...")
+    ret = os.system("python setup.py bdist_wheel")
+    if ret != 0:
+        logger.fatal("Failed to build wheel distribution package.")
+        exit(1)
+    else:
+        logger.info("Build wheel distribution package successfully.")
+
 def run_install():
     print("Installing package...")
     ret = os.system("python setup.py install")
@@ -93,6 +102,11 @@ def main(args):
         # 执行setup.py构建分发包
         run_build_dist()
 
+    # 若配置了构建wheel分发包任务，则构建wheel分发包
+    if args.build_wheel_dist:
+        # 执行setup.py构建wheel分发包
+        run_build_wheel_dist()
+
     # 若配置了安装任务，则安装分发包
     if args.install:
         # 执行setup.py安装
@@ -102,7 +116,7 @@ if __name__ == "__main__":
     init_logger()
 
     # 检查是否在正确的目录下运行
-    if not os.path.abspath(os.path.curdir).endswith("lib\\quick_algo") or not os.path.exists("quick_algo"):
+    if not os.path.exists("setup.py"):
         logger.fatal("Please run this script from the 'lib/quick_algo' directory.")
         exit(1)
 
@@ -116,6 +130,7 @@ if __name__ == "__main__":
     arg_parser.add_argument("--cythonize", action="store_true", default=False, help="Cythonize the source files")
     arg_parser.add_argument("--force_cythonize", action="store_true", default=False, help="Force Cythonize, even if the file is not changed")
     arg_parser.add_argument("--build_dist", action="store_true", default=False, help="Build the distribution")
+    arg_parser.add_argument("--build_wheel_dist", action="store_true", default=False, help="Build the wheel distribution")
     arg_parser.add_argument("--install", action="store_true", default=False, help="Install the package")
     args = arg_parser.parse_args()
 
