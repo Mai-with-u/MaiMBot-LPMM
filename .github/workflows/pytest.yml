@@ -1,4 +1,4 @@
-# 在每次提交后，检查若lib/quick_algo目录下有文件被修改，则运行pytest
+# 若lib/quick_algo目录下有文件被修改，则运行pytest
 name: QuickAlgo CI
 on:
   push:
@@ -42,20 +42,9 @@ jobs:
           pip install cython setuptools pytest numpy scipy networkx
 
       - name: Build and install
-        run: |
-          cd lib/quick_algo
-          python ./build_lib.py --cleanup --cythonize --install
-          cd ../..
+        working-directory: lib/quick_algo
+        run: python ./build_lib.py --cleanup --cythonize --install
 
       - name: Run tests and generate report
-        run: |
-          cd lib/quick_algo
-          pytest ./tests --junitxml=pytest-report.xml
-          cd ../..
-
-      - name: Upload test report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-report-${{ matrix.os }}
-          path: lib/quick_algo/pytest-report.xml
+        working-directory: lib/quick_algo
+        run: pytest ./tests

@@ -15,18 +15,44 @@
  | | └- ...
  | └- ...
  ├- tests - 测试目录
- ├- build_lib.bat - Windows下的构建脚本
- ├- build_lib.sh - Linux下的构建脚本
+ ├- build_lib.py - 构建脚本
+ ├- requirements.txt - 依赖包列表
+ ├- LICENSE.txt - 许可证
  ├- README.md - 本文档
  └- setup.py - Python包安装脚本
 ```
 
 
-## 构建
-请在项目目录下执行`build_lib.bat`/`build_lib.sh`，这将在本目录下构建本依赖库。
+## 构建脚本
+请在项目目录下执行`build_lib.py`并添加相应的任务，这将自动化构建过程。
 
-在构建之前，请确保您的电脑上装有以下依赖：
+该脚本支持以下任务：
+- `--cleanup`：清理构建目录和临时文件
+- `--cythonize`：编译Cython代码（要求依赖`cython`）
+- `--force_cythonize`: 强制重新编译Cython代码（要求依赖`cython`）
+- `--build_dist`：构建Python包（要求依赖`setuptools`）
+- `--build_wheel`：构建Python wheel包（要求依赖`setuptools`, 要求C/Cpp编译环境）
+- `--install`：安装Python包（要求依赖`setuptools`, 要求C/Cpp编译环境）
 
-- MSVC（Windows）/GCC（Linux）
-- Python 3.12
-- Cython（Python包，通过pip安装）
+## 安装
+您可以直接使用`pip install quick_algo`进行安装，也可以在clone本仓库之后通过前述构建脚本于本地进行安装。
+
+要使用构建脚本直接安装，请在项目目录下执行以下命令：
+```bash
+python build_lib.py --cleanup --cythonize --install
+```
+注意：请确保您已经安装了`Cython`和`setuptools`，并且您的系统上有`C/C++编译器`可用。
+
+## 测试
+本项目的测试代码位于tests目录下，使用`pytest`进行测试。
+
+在测试之前，请确保您装有以下依赖：
+- `pytest`：测试框架
+- `networkx`: 图算法库
+- `numpy`: 数值计算库(由networkx要求)
+- `scipy`: 数值计算库(由networkx要求)
+
+要运行测试，请在项目目录下执行以下命令：
+```bash
+pytest ./tests
+```
