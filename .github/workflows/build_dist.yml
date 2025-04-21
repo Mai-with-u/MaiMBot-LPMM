@@ -73,10 +73,8 @@ jobs:
           pip install cython setuptools numpy scipy networkx
 
       - name: Build wheel distribution
-        run: |
-          cd lib/quick_algo
-          python ./build_lib.py --cleanup --cythonize --build_wheel_dist
-          cd ../..
+        working-directory: lib/quick_algo
+        run: python ./build_lib.py --cleanup --cythonize --build_wheel_dist
 
       - name: Upload wheel distribution
         uses: actions/upload-artifact@v3
