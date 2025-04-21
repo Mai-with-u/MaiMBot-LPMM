@@ -51,7 +51,7 @@ URL = "https://github.com/MaiM-with-u/MaiMBot-LPMM"
 EMAIL = "octautumn2002@gmail.com"
 AUTHOR = "Oct Autumn"
 REQUIRES_PYTHON = ">=3.10"
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
