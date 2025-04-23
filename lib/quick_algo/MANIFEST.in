@@ -1,4 +1,6 @@
 prune tests
 graft quick_algo/di_graph/cpp
 graft quick_algo/pagerank/cpp
+include quick_algo/di_graph/di_graph.pyi
+include quick_algo/pagerank/pagerank.pyi
 include CHANGELOG.md

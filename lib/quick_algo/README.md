@@ -35,13 +35,24 @@
 - `--install`：安装Python包（要求依赖`setuptools`, 要求C/Cpp编译环境）
 
 ## 安装
-您可以直接使用`pip install quick_algo`进行安装，也可以在clone本仓库之后通过前述构建脚本于本地进行安装。
+您可以直接使用`pip install quick_algo`进行安装：
+```bash
+pip install quick_algo
+```
+> 注：PyPI上提供的二进制包默认不开启SIMD优化，您可以通过编译源码分发包来启用该特性
 
-要使用构建脚本直接安装，请在项目目录下执行以下命令：
+您也可以在clone本仓库之后通过前述构建脚本于本地进行编译安装。
+
+在编译安装之前，请确保您装有以下依赖：
+- `setuptools`: Python包管理工具
+- `Cython`: Cython编译器
+- `py-cpuinfo`: CPU信息获取库
+- `MSVC/GCC/Clang`: C/Cpp编译环境
+
+要使用脚本编译安装，请在项目目录下执行以下命令：
 ```bash
 python build_lib.py --cleanup --cythonize --install
 ```
-注意：请确保您已经安装了`Cython`和`setuptools`，并且您的系统上有`C/C++编译器`可用。
 
 ## 测试
 本项目的测试代码位于tests目录下，使用`pytest`进行测试。
@@ -54,5 +65,5 @@ python build_lib.py --cleanup --cythonize --install
 
 要运行测试，请在项目目录下执行以下命令：
 ```bash
-pytest ./tests
+pytest ./tests -s
 ```

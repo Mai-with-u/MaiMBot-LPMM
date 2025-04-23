@@ -1,4 +1,4 @@
-from ..di_graph.di_graph import DiGraph
+from quick_algo.di_graph import DiGraph
 
 
 def run_pagerank(

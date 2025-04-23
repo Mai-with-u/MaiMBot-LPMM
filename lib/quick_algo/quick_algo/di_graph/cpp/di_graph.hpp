@@ -1,8 +1,6 @@
 #ifndef DI_GRAPH_H
 #define DI_GRAPH_H
 
-#define DEBUG 1 // 调试模式
-
 #include <vector>
 #include <queue>
 

@@ -1,48 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Note: To use the 'upload' functionality of this file, you must:
-#   $ pipenv install twine --dev
-
 import io
 import os
 import sys
-from shutil import rmtree
+import cpuinfo
 
-from setuptools import find_packages, setup, Command, Extension
-
-compile_args = [
-    "-fopenmp",
-    "-O3"
-]
-
-ext_modules = [
-    Extension(
-        "quick_algo.di_graph.di_graph",
-        sources=[
-            "quick_algo/di_graph/di_graph.cpp",
-            "quick_algo/di_graph/cpp/di_graph_impl.cpp",
-        ],
-        include_dirs=[
-            "quick_algo/di_graph"
-        ],
-        extra_compile_args=compile_args,
-        language="c++",
-    ),
-    Extension(
-        "quick_algo.pagerank.pagerank",
-        sources=[
-            "quick_algo/pagerank/pagerank.cpp",
-            "quick_algo/pagerank/cpp/pagerank_impl.cpp",
-        ],
-        include_dirs=[
-            "quick_algo/pagerank",
-            "quick_algo/di_graph",
-        ],
-        extra_compile_args=compile_args,
-        language="c++",
-    ),
-]
+from setuptools import find_packages, setup, Extension
 
 # Package meta-data.
 NAME = "quick_algo"
@@ -51,7 +15,7 @@ URL = "https://github.com/MaiM-with-u/MaiMBot-LPMM"
 EMAIL = "octautumn2002@gmail.com"
 AUTHOR = "Oct Autumn"
 REQUIRES_PYTHON = ">=3.10"
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -62,6 +26,80 @@ REQUIRED = [
 EXTRAS = {
     # 'fancy feature': ['django'],
 }
+
+platform_info = {
+    "avx2": False,      # 是否支持AVX2指令集
+}
+
+build_args = {
+    "no-simd": False,  # 是否禁用SIMD优化
+}
+
+# 获取额外参数
+def get_extra_args():
+    if "--compile_no_simd" in sys.argv:
+        # 禁用SIMD优化
+        sys.argv.remove("--compile_no_simd")
+        build_args["no-simd"] = True
+
+# 获取平台信息
+def get_platform_info():
+    # 获取AVX2指令集支持情况
+    cpu_info = cpuinfo.get_cpu_info()
+    if "avx2" in cpu_info["flags"] and not build_args["no-simd"]:
+        platform_info["avx2"] = True
+    # TODO: 考虑支持ARM平台的SIMD指令集，如NEON等
+
+# 生成构建参数
+def get_compile_and_link_args():
+    get_platform_info()
+    compile_args = [
+        "-O3"
+    ]
+    if platform_info["avx2"]:
+        compile_args.append("-mavx2")
+        compile_args.append("-D__AVX2__")
+        print("Enabled AVX2 support")
+    
+    link_args = []
+
+    return compile_args, link_args
+
+# 获取扩展模块
+def get_ext_modules():
+    compile_args, link_args = get_compile_and_link_args()
+    ext_modules = [
+        Extension(
+            "quick_algo.di_graph.di_graph",
+            sources=[
+                "quick_algo/di_graph/di_graph.cpp",
+                "quick_algo/di_graph/cpp/di_graph_impl.cpp",
+            ],
+            include_dirs=[
+                "quick_algo/di_graph"
+            ],
+
+            extra_compile_args=compile_args,
+            extra_link_args=link_args,
+            language="c++",
+        ),
+        Extension(
+            "quick_algo.pagerank.pagerank",
+            sources=[
+                "quick_algo/pagerank/pagerank.cpp",
+                "quick_algo/pagerank/cpp/pagerank_impl.cpp",
+            ],
+            include_dirs=[
+                "quick_algo/pagerank",
+                "quick_algo/di_graph",
+            ],
+            extra_compile_args=compile_args,
+            extra_link_args=link_args,
+            language="c++",
+        ),
+    ]
+
+    return ext_modules
 
 # The rest you shouldn't have to touch too much :)
 # ------------------------------------------------
@@ -87,44 +125,7 @@ if not VERSION:
 else:
     about["__version__"] = VERSION
 
-
-class UploadCommand(Command):
-    """Support setup.py upload."""
-
-    description = "Build and publish the package."
-    user_options = []
-
-    @staticmethod
-    def status(s):
-        """Prints things in bold."""
-        print("\033[1m{0}\033[0m".format(s))
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
-
-    def run(self):
-        try:
-            self.status("Removing previous builds…")
-            rmtree(os.path.join(here, "dist"))
-        except OSError:
-            pass
-
-        self.status("Building Source and Wheel (universal) distribution…")
-        os.system("{0} setup.py sdist bdist_wheel --universal".format(sys.executable))
-
-        self.status("Uploading the package to PyPI via Twine…")
-        os.system("twine upload dist/*")
-
-        self.status("Pushing git tags…")
-        os.system("git tag v{0}".format(about["__version__"]))
-        os.system("git push --tags")
-
-        sys.exit()
-
-
+get_extra_args()    # 先于setup()函数调用，处理额外参数
 setup(
     name=NAME,
     version=about["__version__"],
@@ -136,7 +137,7 @@ setup(
     python_requires=REQUIRES_PYTHON,
     url=URL,
     packages=find_packages(exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
-    ext_modules=ext_modules,
+    ext_modules=get_ext_modules(),
     # If your package is a single module, use this instead of 'packages':
     # py_modules=['mypackage'],
     # entry_points={
@@ -164,8 +165,4 @@ setup(
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
     ],
-    # $ setup.py publish support.
-    cmdclass={
-        "upload": UploadCommand,
-    },
 )

@@ -1,4 +1,7 @@
+py-cpuinfo
 cython
 setuptools
 pytest
+numpy
+scipy
 networkx

@@ -1,13 +1,13 @@
 #define __USE_MINGW_ANSI_STDIO 1
 #include <stdio.h>
 #include <stdexcept>
-#include <malloc.h>
+#include <stdlib.h>
 #include <math.h>
 
 #include "pagerank.hpp"
 
-#ifdef _MP
-#include "omp.h"
+#ifdef __AVX2__
+#include <immintrin.h> // SIMD指令集头文件
 #endif
 
 /**
@@ -111,10 +111,6 @@ double *pagerank(
         }
 
         // 填充权重矩阵
-
-#ifdef _MP
-#pragma omp parallel for
-#endif
         for (long long i = 0; i < node_array_size; i++)
         {
             if (weight_matrix[i].edge_num < 0)
@@ -172,9 +168,58 @@ double *pagerank(
         }
         dangling_sum = alpha * dangling_sum; // 计算悬挂节点的贡献
 
-#ifdef _MP
-#pragma omp parallel for
-#endif
+#ifdef __AVX2__
+        // 使用AVX2加速运算
+        // 1. 计算悬挂节点贡献和个性化向量贡献
+        {
+            long long i;
+            {
+                __m256d dangling_sum_vec = _mm256_set1_pd(dangling_sum); // 设置悬挂节点贡献向量
+                __m256d n_alpha_vec = _mm256_set1_pd(1.0 - alpha);       // 设置个性化向量系数
+                for (i = 0; i < node_array_size - 4; i += 4)
+                {
+                    __m256d score_vec = _mm256_loadu_pd(&score[i]); // 加载当前Score向量
+                    {
+                        // 使用SIMD指令计算悬挂节点贡献
+                        __m256d dangling_weight_vec_vec = _mm256_loadu_pd(&dangling_weight_vec[i]);      // 加载悬挂节点权重向量
+                        __m256d dangling_vec = _mm256_mul_pd(dangling_sum_vec, dangling_weight_vec_vec); // 计算悬挂节点贡献
+                        score_vec = _mm256_add_pd(score_vec, dangling_vec);                              // 累加悬挂节点贡献
+                    }
+                    {
+                        // 使用SIMD指令计算个性化向量贡献
+                        __m256d personalization_vec_vec = _mm256_loadu_pd(&personalization_vec[i]);             // 加载个性化向量
+                        __m256d personalization_vec_vec3 = _mm256_mul_pd(personalization_vec_vec, n_alpha_vec); // 计算个性化向量贡献
+                        score_vec = _mm256_add_pd(score_vec, personalization_vec_vec3);                         // 累加个性化向量贡献
+                    }
+                    _mm256_storeu_pd(&score[i], score_vec); // 存储结果
+                }
+            }
+            for (; i < node_array_size; ++i)
+            {
+                if (weight_matrix[i].edge_num < 0)
+                    continue; // 跳过无效节点
+
+                // 计算悬挂节点贡献和个性化向量贡献
+                score[i] += dangling_sum * dangling_weight_vec[i];  // 悬挂节点贡献
+                score[i] += (1.0 - alpha) * personalization_vec[i]; // 个性化向量贡献
+            }
+        }
+        // 2. 计算节点间传播贡献
+        {
+            for (long long i = 0; i < node_array_size; ++i)
+            {
+                if (weight_matrix[i].edge_num < 0)
+                    continue; // 跳过无效节点
+
+                double sum_propagation = 0.0L; // 节点间传播贡献
+                // 遍历所有入边
+                for (long long j = 0; j < weight_matrix[i].edge_num; j++)
+                    sum_propagation += last_score[weight_matrix[i].edges[j].src] * weight_matrix[i].edges[j].weight;
+                score[i] += sum_propagation * alpha; // 节点间传播贡献
+            }
+        }
+#else
+        // 使用普通循环计算
         for (long long i = 0; i < node_array_size; i++)
         {
             if (weight_matrix[i].edge_num < 0)
@@ -191,6 +236,7 @@ double *pagerank(
                 sum_propagation += last_score[weight_matrix[i].edges[j].src] * weight_matrix[i].edges[j].weight;
             score[i] += sum_propagation * alpha; // 节点间传播贡献
         }
+#endif
 
         // 检查收敛
         double diff = 0.0L;

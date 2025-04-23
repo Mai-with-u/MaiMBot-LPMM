@@ -4,8 +4,6 @@ import os
 import xml.etree.ElementTree as et
 from xml.dom import minidom
 
-from networkx.classes import edges
-
 cdef class DiNode:
     """
     有向图节点的Python封装
@@ -58,7 +56,6 @@ cdef class DiEdge:
         A class representing an edge in a directed graph.
         :param src: Source node name
         :param dst: Destination node name
-        :param weight: Edge weight
         :param attr: Edge attributes
         """
         self.src = src
@@ -152,9 +149,7 @@ cdef class DiGraph:
     def _direct_add_edge(self, edge: DiEdge):
         """
         直接添加一条边到图中
-        :param src: 源节点
-        :param dst: 目标节点
-        :param weight: 权重
+        :param edge: (src, dst, weight, attr)
         """
         # 起止节点索引
         src_idx = self.node_name2idx_map[edge.src]
