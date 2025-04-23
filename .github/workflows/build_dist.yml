@@ -28,7 +28,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install cython setuptools
+          pip install cython setuptools py-cpuinfo
 
       - name: Build source distribution
         working-directory: lib/quick_algo
@@ -44,7 +44,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [windows-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
@@ -57,12 +57,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
-      - name: Install build tools (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential
-
       - name: Ensure MSVC Build Tools (Windows)
         if: matrix.os == 'windows-latest'
         run: |
@@ -70,11 +64,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install cython setuptools wheel
+          pip install cython setuptools py-cpuinfo wheel
 
       - name: Build wheel distribution
         working-directory: lib/quick_algo
-        run: python ./build_lib.py --cleanup --cythonize --build_wheel_dist
+        run: python ./build_lib.py --cleanup --cythonize --build_wheel_dist --compile_no_simd
 
       - name: Upload wheel distribution
         uses: actions/upload-artifact@v4

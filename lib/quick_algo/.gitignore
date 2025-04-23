@@ -1,4 +1,5 @@
 /.vscode/
+/.idea/
 /build/
 /dist/
 /quick_algo.egg-info/
@@ -8,3 +9,5 @@
 /quick_algo/pagerank/pagerank.cpp
 /quick_algo/pagerank/*.pyd
 
+**/__pycache__/
+*.pyc

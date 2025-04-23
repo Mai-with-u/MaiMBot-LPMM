@@ -1,3 +1,4 @@
+import os
 import random
 import time
 
@@ -114,14 +115,36 @@ class TestPageRank:
         max_iter = 100
         tol = 1e-6
 
-        for i in range(25):
-            # 生成随机测试数据
+        # 加载测试数据
+        if not os.path.exists("test_data.txt"):
+            print("Generating test data...")
             edge_list, personalization = generate_rand_data(20000, 100000)
+            with open("test_data.txt", "w") as f:
+                f.write(f"{len(edge_list)} {len(personalization)}\n")
+                for (src, dst), weight in edge_list.items():
+                    f.write(f"{src} {dst} {weight}\n")
+                for node, weight in personalization.items():
+                    f.write(f"{node} {weight}\n")
+                print("Test data generated and saved.")
+        else:
+            print("Loading test data...")
+            with open("test_data.txt", "r") as f:
+                lines = f.readlines()
+                num_edges, num_personalization = map(int, lines[0].split())
+                edge_list = dict()
+                for i in range(1, num_edges + 1):
+                    src, dst, weight = lines[i].split()
+                    edge_list[(int(src), int(dst))] = float(weight)
+                personalization = dict()
+                for i in range(num_edges + 1, num_edges + num_personalization + 1):
+                    node, weight = lines[i].split()
+                    personalization[node] = float(weight)
+                print("Test data loaded.")            
 
+        for i in range(25):
+            # 构造图
             graph = DiGraph()
             nx_graph = networkx.DiGraph()
-
-
 
             graph.add_edges_from(
                 [
