@@ -1,5 +1,4 @@
-from lib.quick_algo.quick_algo.di_graph.di_graph import CDiGraph
-
+__all__ = ["DiGraph", "DiEdge", "DiNode", "save_to_file", "load_from_file"]
 
 class DiNode:
     """
@@ -57,7 +56,6 @@ class DiGraph:
     """
     有向图
     """
-    nodes: CDiGraph
     node_name2idx_map: dict[str, int]
     
     def __init__(self):

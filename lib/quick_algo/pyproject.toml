@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools", "py-cpuinfo"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quick-algo"
+authors = [
+    {name="Oct-autumn", email="octautumn2002@gmail.com"},
+]
+version = "0.1.3"
+description = "A fast and efficient algorithm library for LPMM"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICEN[CS]E.txt"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: C++",
+    "Programming Language :: Cython",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+
+[project.optional-dependencies]
+build = [
+    "cython",
+    "build",
+    "setuptools",
+    "py-cpuinfo",
+    "wheel",
+]
+test = [
+    "pytest",
+    "numpy",
+    "scipy",
+    "networkx",
+]
+
+[project.urls]
+Homepage = "https://github.com/MaiM-with-u/MaiMBot-LPMM"
+Issues = "https://github.com/MaiM-with-u/MaiMBot-LPMM/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}

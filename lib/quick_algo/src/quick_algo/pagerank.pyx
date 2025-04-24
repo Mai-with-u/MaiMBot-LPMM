@@ -2,7 +2,9 @@
 
 from libc.stdlib cimport free, malloc
 
-from quick_algo.di_graph.di_graph cimport CDiGraph, DiGraph
+from .di_graph cimport DiGraph
+
+__all__ = ["run_pagerank"]
 
 def run_pagerank(
         graph: DiGraph,

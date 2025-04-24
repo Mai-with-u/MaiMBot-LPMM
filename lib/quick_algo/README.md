@@ -5,21 +5,29 @@
 
 ```text
 
-/┬- quick_algo - 项目目录  
- ├- quick_algo - 源码目录
- | ├- di_graph - 有向图实现
- | | ├- cpp - C++头文件&实现
- | | └- ...
- | ├- pagerank - PageRank算法实现
- | | ├- cpp - C++头文件&实现
- | | └- ...
- | └- ...
- ├- tests - 测试目录
- ├- build_lib.py - 构建脚本
- ├- requirements.txt - 依赖包列表
- ├- LICENSE.txt - 许可证
- ├- README.md - 本文档
- └- setup.py - Python包安装脚本
+─ quick_algo - 项目目录  
+ ├─ src - 源码目录
+ │ └─ quick_algo - 纯C/C++代码目录
+ │   ├─ cpp - 纯C/C++代码目录
+ │   │ │ ├─ di_graph.hpp - 有向图头文件
+ │   │ │ └─ di_graph_impl.cpp - 有向图实现
+ │   │ ├─ cpp - 纯C/C++代码目录
+ │   │ │ ├─ pagerank.hpp - 有向图头文件
+ │   │ │ └─ pagerank_impl.cpp - 有向图实现
+ │   │ ├─ __init__.py - Python包初始化文件
+ │   │ ├─ di_graph.pxd - Cython头文件
+ │   │ ├─ di_graph.pyi - di_graph类型声明文件
+ │   │ └─ di_graph.pyx - Cython实现
+ │   │ ├─ pagerank.pxd - Cython头文件
+ │   │ ├─ pagerank.pyi - pagerank类型声明文件
+ │   │ └─ pagerank.pyx - Cython实现
+ │   └─ __init__.py - Python包初始化文件
+ ├─ tests - 测试代码目录
+ ├─ build_lib.py - 构建脚本
+ ├─ pyproject.toml - Python项目配置文件
+ ├─ setup.py - buildtools安装脚本
+ ├─ LICENSE.txt - 许可证
+ └─ README.md - 本文档
 ```
 
 
