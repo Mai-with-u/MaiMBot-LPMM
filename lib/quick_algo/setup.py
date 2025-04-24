@@ -42,7 +42,7 @@ def get_platform_info():
     
     print(f"cpu info:{cpu_info}")
     if "flags" in cpu_info:
-        print(f"CPU Flags：{cpu_info['flags']}")
+        print(f"CPU Flags: {cpu_info['flags']}")
     print(f"Detected Platform: {'ARM' if is_arm_platform else 'x86'}")
     
     if not build_args["no-simd"]:
