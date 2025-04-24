@@ -32,7 +32,7 @@ jobs:
 
       - name: Build source distribution
         working-directory: lib/quick_algo
-        run: python ./build_lib.py --cleanup --cythonize --build_dist
+        run: python ./build_lib.py --cleanup --cythonize --build_sdist
 
       - name: Upload source distribution
         uses: actions/upload-artifact@v4
