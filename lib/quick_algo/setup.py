@@ -54,11 +54,11 @@ def get_platform_info():
             if any(arm_arch in cpu_info.get("arch_string_raw", "").lower() 
                   for arm_arch in ["aarch64", "arm64", "armv8"]):
                 platform_info["neon"] = True
-                print("启用ARM NEON支持 (AArch64)")
+                print("Enabled ARM NEON support (AArch64)")
             # 对于ARMv7，需要检查flags中是否有neon标志
             elif "neon" in cpu_info.get("flags", []):
                 platform_info["neon"] = True
-                print("启用ARM NEON支持 (ARMv7)")
+                print("Enabled ARM NEON support (ARMv7)")
         else:
             # 非ARM平台上检查AVX2支持
             platform_info["neon"] = False
@@ -83,8 +83,8 @@ def get_compile_and_link_args():
         arch = cpu_info["arch"].lower()
         is_arm_platform = any(arm_arch in arch for arm_arch in ["aarch64", "arm64", "armv8", "arm"])
     
-    print(f"编译参数生成 - 平台检测: {'ARM' if is_arm_platform else 'x86'}")
-    print(f"SIMD支持状态: AVX2={platform_info['avx2']}, NEON={platform_info['neon']}")
+    print(f"Generating Compilation Parameters - Platform Detection: {'ARM' if is_arm_platform else 'x86'}")
+    print(f"SIMD support: AVX2={platform_info['avx2']}, NEON={platform_info['neon']}")
 
     if is_arm_platform:
         # 在ARM平台上只使用NEON指令集，不添加AVX2相关参数
@@ -92,19 +92,19 @@ def get_compile_and_link_args():
             # 对于AArch64，NEON是默认的，不需要额外的编译选项
             # 但是我们添加宏定义，以便在代码中检测NEON支持
             compile_args.append("-D__ARM_NEON__")
-            print("为ARM平台启用NEON支持")
+            print("Enabled NEON support")
     else:
         # 非ARM平台才考虑使用AVX2
         if platform_info["os"] == "Linux" or platform_info["os"] == "macOS":
             if platform_info["avx2"]:
                 compile_args.append("-mavx2")
                 compile_args.append("-D__AVX2__")
-                print("为x86平台启用AVX2支持")
+                print("Enabled AVX2 support")
         elif platform_info["os"] == "Windows":
             if platform_info["avx2"]:
                 compile_args.append("/arch:AVX2")
                 compile_args.append("-D__AVX2__")
-                print("为x86平台启用AVX2支持")
+                print("Enabled AVX2 support")
     
     link_args = []
 
