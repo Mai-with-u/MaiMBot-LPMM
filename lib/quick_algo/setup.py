@@ -40,10 +40,10 @@ def get_platform_info():
         arch = cpu_info["arch"].lower()
         is_arm_platform = any(arm_arch in arch for arm_arch in ["aarch64", "arm64", "armv8", "arm"])
     
-    print(f"当前cpu信息:{cpu_info}")
+    print(f"cpu info:{cpu_info}")
     if "flags" in cpu_info:
-        print(f"当前cpu指令集支持：{cpu_info['flags']}")
-    print(f"检测到的平台: {'ARM' if is_arm_platform else 'x86'}")
+        print(f"CPU Flags：{cpu_info['flags']}")
+    print(f"Detected Platform: {'ARM' if is_arm_platform else 'x86'}")
     
     if not build_args["no-simd"]:
         if is_arm_platform:
