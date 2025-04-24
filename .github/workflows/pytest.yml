@@ -37,10 +37,6 @@ jobs:
         run: |
           echo "MSVC tools will be automatically available on windows-latest"
 
-      - name: Set UTF-8 Encoding
-        run: |
-          echo "PYTHONUTF8=1" >> $GITHUB_ENV
-
       - name: Install dependencies
         run: |
           pip install cython build setuptools py-cpuinfo wheel pytest numpy scipy networkx

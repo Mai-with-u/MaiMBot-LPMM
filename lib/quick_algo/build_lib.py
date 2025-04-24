@@ -4,10 +4,8 @@ import os
 import logging
 import subprocess
 import sys
-import io
 import shutil
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 pyx_modules = [
     "src/quick_algo/di_graph.pyx",
