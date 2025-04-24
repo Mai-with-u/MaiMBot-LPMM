@@ -3,7 +3,7 @@
 
 // #define __AVX2__ // 启用AVX2优化（影响：小）
 
-#include "../../di_graph/cpp/di_graph.hpp"
+#include "di_graph.hpp"
 
 class EdgeWeight
 {

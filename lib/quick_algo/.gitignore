@@ -4,10 +4,11 @@
 /dist/
 /quick_algo.egg-info/
 
-/quick_algo/di_graph/di_graph.cpp
+/src/quick_algo/di_graph.cpp
 /quick_algo/di_graph/*.pyd
-/quick_algo/pagerank/pagerank.cpp
+/src/quick_algo/pagerank.cpp
 /quick_algo/pagerank/*.pyd
+/src/quick_algo.egg-info/
 
-**/__pycache__/
 *.pyc
+/test_data.txt

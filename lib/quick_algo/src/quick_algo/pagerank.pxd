@@ -1,6 +1,6 @@
 # distutils: language=c++
 
-from ..di_graph.di_graph cimport CDiGraph
+from .di_graph cimport CDiGraph
 
 cdef extern from "cpp/pagerank.hpp":
     double *pagerank(

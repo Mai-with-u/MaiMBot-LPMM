@@ -39,7 +39,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install cython setuptools py-cpuinfo pytest numpy scipy networkx
+          pip install cython build setuptools py-cpuinfo wheel pytest numpy scipy networkx
 
       - name: Build and install
         working-directory: lib/quick_algo

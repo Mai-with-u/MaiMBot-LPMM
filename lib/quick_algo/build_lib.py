@@ -8,13 +8,12 @@ import shutil
 
 
 pyx_modules = [
-    "quick_algo/di_graph/di_graph.pyx",
-    "quick_algo/pagerank/pagerank.pyx",
+    "src/quick_algo/di_graph.pyx",
+    "src/quick_algo/pagerank.pyx",
 ]
 
 include_dirs = [
-    "quick_algo/di_graph/cpp",
-    "quick_algo/pagerank/cpp",
+    "src/quick_algo/cpp",
 ]
 
 logger = logging.getLogger(__name__)
@@ -32,7 +31,7 @@ def init_logger():
 def clean_up(args):
     # 清理构建内容
     logger.warning("Cleaning up build directory...")
-    build_dirs=["build", "dist", "quick_algo.egg-info"]
+    build_dirs=["build", "dist", "src/quick_algo.egg-info"]
 
     for dir_to_del in build_dirs:
         if os.path.exists(dir_to_del):
@@ -66,43 +65,45 @@ def run_cythonize(args):
 
     logger.info("Cythonize completed successfully.")
 
-def run_build_dist(args):
+def run_build_sdist(args):
     logger.info("Building distribution package...")
-    # 执行setup.py构建源码分发包
-    exec_args=[sys.executable, "setup.py", "sdist", "build"]
+    # 构建源码分发包
+    exec_args=[sys.executable, "-m", "build", "--sdist"]
     if args.compile_no_simd:
-        exec_args.append("--compile_no_simd")
+        # 添加临时环境变量
+        os.environ["QUICK_ALGO_NO_SIMD"] = "1"
 
     try:
-        subprocess.run(
+        result = subprocess.run(
             exec_args,
             check=True,
             capture_output=True,
             text=True,
             env=os.environ.copy()
         )
-        logger.info("Build distribution package successfully.")
+        logger.info("Build distribution package successfully. Output:\n%s", result.stdout)
     except subprocess.CalledProcessError as e:
         logger.error("Error occurred while building distribution package. Details:\n%s", e.stderr)
         logger.error(e.stderr)
         sys.exit(1)
 
-def run_build_wheel_dist(args):
+def run_build_wheel(args):
     logger.info("Building wheel distribution package...")
-    # 执行setup.py构建wheel分发包
-    exec_args=[sys.executable, "setup.py", "bdist_wheel"]
+    # 构建wheel二进制分发包
+    exec_args = [sys.executable, "-m", "build", "--wheel"]
     if args.compile_no_simd:
-        exec_args.append("--compile_no_simd")
+        # 添加临时环境变量
+        os.environ["QUICK_ALGO_NO_SIMD"] = "1"
 
     try:
-        subprocess.run(
+        result = subprocess.run(
             exec_args,
             check=True,
             capture_output=True,
             text=True,
             env=os.environ.copy()
         )
-        logger.info("Build wheel distribution package successfully.")
+        logger.info("Build wheel distribution package successfully. Output:\n%s", result.stdout)
     except subprocess.CalledProcessError as e:
         logger.error("Error occurred while building wheel distribution package. Details:\n%s", e.stderr)
         logger.error(e.stderr)
@@ -110,20 +111,21 @@ def run_build_wheel_dist(args):
 
 def run_install(args):
     logger.info("Installing package...")
-    # 执行setup.py安装QuickAlgo库
-    exec_args=[sys.executable, "setup.py", "install", "--force"]
+    # 直接安装库
+    exec_args = [sys.executable, "-m", "pip", "install", "."]
     if args.compile_no_simd:
-        exec_args.append("--compile_no_simd")
+        # 添加临时环境变量
+        os.environ["QUICK_ALGO_NO_SIMD"] = "1"
 
     try:
-        subprocess.run(
+        result = subprocess.run(
             exec_args,
             check=True,
             capture_output=True,
             text=True,
             env=os.environ.copy()
         )
-        logger.info("Install package successfully.")
+        logger.info("Install package successfully. Output:\n%s", result.stdout)
     except subprocess.CalledProcessError as e:
         logger.error("Error occurred while installing package. Details:\n%s", e.stderr)
         logger.error(e.stderr)
@@ -139,17 +141,17 @@ def main(args):
     if args.cythonize or args.force_cythonize:
         run_cythonize(args)
 
-    # 若配置了构建分发包任务，则构建分发包
-    if args.build_dist:
+    # 若配置了构建源码分发包任务，则构建源码分发包
+    if args.build_sdist:
         # 执行setup.py构建分发包
-        run_build_dist(args)
+        run_build_sdist(args)
 
     # 若配置了构建wheel分发包任务，则构建wheel分发包
-    if args.build_wheel_dist:
+    if args.build_wheel:
         # 执行setup.py构建wheel分发包
-        run_build_wheel_dist(args)
+        run_build_wheel(args)
 
-    # 若配置了安装任务，则安装分发包
+    # 若配置了直接安装任务，则直接安装
     if args.install:
         # 执行setup.py安装
         run_install(args)
@@ -171,9 +173,9 @@ if __name__ == "__main__":
     arg_parser.add_argument("--cleanup", action="store_true", default=False, help="Cleanup the build directory")
     arg_parser.add_argument("--cythonize", action="store_true", default=False, help="Cythonize the source files")
     arg_parser.add_argument("--force_cythonize", action="store_true", default=False, help="Force Cythonize, even if the file is not changed")
-    arg_parser.add_argument("--build_dist", action="store_true", default=False, help="Build the distribution")
-    arg_parser.add_argument("--build_wheel_dist", action="store_true", default=False, help="Build the wheel distribution")
-    arg_parser.add_argument("--install", action="store_true", default=False, help="Install the package")
+    arg_parser.add_argument("--build_sdist", action="store_true", default=False, help="Build the source code distribution")
+    arg_parser.add_argument("--build_wheel", action="store_true", default=False, help="Build the wheel distribution")
+    arg_parser.add_argument("--install", action="store_true", default=False, help="Directly install the package")
     arg_parser.add_argument("--compile_no_simd", action="store_true", default=False, help="Compile without SIMD optimization")
     args = arg_parser.parse_args()
 
