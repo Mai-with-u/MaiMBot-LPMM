@@ -29,7 +29,7 @@ def get_platform_info():
     # 获取CPU信息
     cpu_info = cpuinfo.get_cpu_info()
     
-    # 检查是否为ARM架构 - 使用arch_string_raw而不是arch，更可靠
+    # 检查是否为ARM架构
     is_arm_platform = False
     if "arch_string_raw" in cpu_info:
         arch_raw = cpu_info["arch_string_raw"].lower()
