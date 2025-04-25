@@ -40,6 +40,9 @@ def get_platform_info():
         arch = cpu_info["arch"].lower()
         is_arm_platform = any(arm_arch in arch for arm_arch in ["aarch64", "arm64", "armv8", "arm"])
     
+    # 将ARM信息保存到platform_info中
+    platform_info["is_arm"] = is_arm_platform
+    
     print(f"cpu info:{cpu_info}")
     if "flags" in cpu_info:
         print(f"CPU Flags: {cpu_info['flags']}")
@@ -70,23 +73,11 @@ def get_compile_and_link_args():
     get_platform_info()
 
     compile_args = []
-
-    # 检查是否为ARM架构 - 使用更可靠的方法再次确认
-    cpu_info = cpuinfo.get_cpu_info()
-    is_arm_platform = False
     
-    if "arch_string_raw" in cpu_info:
-        arch_raw = cpu_info["arch_string_raw"].lower()
-        is_arm_platform = any(arm_arch in arch_raw for arm_arch in ["aarch64", "arm64", "armv8", "arm"])
-    
-    if not is_arm_platform and "arch" in cpu_info:
-        arch = cpu_info["arch"].lower()
-        is_arm_platform = any(arm_arch in arch for arm_arch in ["aarch64", "arm64", "armv8", "arm"])
-    
-    print(f"Generating Compilation Parameters - Platform Detection: {'ARM' if is_arm_platform else 'x86'}")
+    print(f"Generating Compilation Parameters - Platform Detection: {'ARM' if platform_info['is_arm'] else 'x86'}")
     print(f"SIMD support: AVX2={platform_info['avx2']}, NEON={platform_info['neon']}")
 
-    if is_arm_platform:
+    if platform_info["is_arm"]:
         # 在ARM平台上只使用NEON指令集，不添加AVX2相关参数
         if platform_info["neon"]:
             # 对于AArch64，NEON是默认的，不需要额外的编译选项
