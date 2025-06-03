@@ -12,3 +12,4 @@ matplotlib==3.10.1
 jsonlines==4.0.0
 setuptools==78.1.0
 ruff==0.11.1
+cython
