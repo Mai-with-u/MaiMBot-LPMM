@@ -7,7 +7,11 @@ jobs:
   build-wheel-linux:
     strategy:
         matrix:
-          os: [ubuntu-latest, ubuntu-24.04-arm]
+          include:
+            - os: ubuntu-latest
+              arch: x86_64
+            - os: ubuntu-24.04-arm
+              arch: arm64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -41,7 +45,7 @@ jobs:
       - name: Upload wheel distribution
         uses: actions/upload-artifact@v4
         with:
-          name: wheel_${{ matrix.python-version }}_${{ matrix.os }}
+          name: wheel_manylinux_${{ matrix.arch }}
           path: lib/quick_algo/dist/*.whl
 
   build-wheel:
