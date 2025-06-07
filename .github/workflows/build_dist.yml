@@ -41,7 +41,7 @@ jobs:
       - name: Upload wheel distribution
         uses: actions/upload-artifact@v4
         with:
-          name: wheel_manylinux
+          name: wheel_${{ matrix.python-version }}_${{ matrix.os }}
           path: lib/quick_algo/dist/*.whl
 
   build-wheel:
