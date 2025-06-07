@@ -69,9 +69,9 @@ def run_build_sdist(args):
     logger.info("Building distribution package...")
     # 构建源码分发包
     exec_args=[sys.executable, "-m", "build", "--sdist"]
-    if args.compile_no_simd:
+    if args.compile_with_simd:
         # 添加临时环境变量
-        os.environ["QUICK_ALGO_NO_SIMD"] = "1"
+        os.environ["QUICK_ALGO_SIMD"] = "1"
 
     try:
         result = subprocess.run(
@@ -91,9 +91,9 @@ def run_build_wheel(args):
     logger.info("Building wheel distribution package...")
     # 构建wheel二进制分发包
     exec_args = [sys.executable, "-m", "build", "--wheel"]
-    if args.compile_no_simd:
+    if args.compile_with_simd:
         # 添加临时环境变量
-        os.environ["QUICK_ALGO_NO_SIMD"] = "1"
+        os.environ["QUICK_ALGO_SIMD"] = "1"
 
     try:
         result = subprocess.run(
@@ -113,9 +113,9 @@ def run_install(args):
     logger.info("Installing package...")
     # 直接安装库
     exec_args = [sys.executable, "-m", "pip", "install", "."]
-    if args.compile_no_simd:
+    if args.compile_with_simd:
         # 添加临时环境变量
-        os.environ["QUICK_ALGO_NO_SIMD"] = "1"
+        os.environ["QUICK_ALGO_SIMD"] = "1"
 
     try:
         result = subprocess.run(
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     arg_parser.add_argument("--build_sdist", action="store_true", default=False, help="Build the source code distribution")
     arg_parser.add_argument("--build_wheel", action="store_true", default=False, help="Build the wheel distribution")
     arg_parser.add_argument("--install", action="store_true", default=False, help="Directly install the package")
-    arg_parser.add_argument("--compile_no_simd", action="store_true", default=False, help="Compile without SIMD optimization")
+    arg_parser.add_argument("--compile_with_simd", action="store_true", default=False, help="Compile with SIMD optimization")
     args = arg_parser.parse_args()
 
     main(args)

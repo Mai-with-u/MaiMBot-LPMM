@@ -24,6 +24,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install cython build setuptools py-cpuinfo wheel cibuildwheel
+      
+      - name: Cythonize files
+        working-directory: lib/quick_algo
+        run: python ./build_lib.py --cleanup --cythonize
 
       - name: Build wheels (manylinux)
         working-directory: lib/quick_algo
@@ -58,7 +62,7 @@ jobs:
 
       - name: Build wheel distribution
         working-directory: lib/quick_algo
-        run: python ./build_lib.py --cleanup --cythonize --build_wheel --compile_no_simd
+        run: python ./build_lib.py --cleanup --cythonize --build_wheel
 
       - name: Upload wheel distribution
         uses: actions/upload-artifact@v4

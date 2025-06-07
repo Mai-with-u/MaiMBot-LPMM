@@ -13,7 +13,7 @@ platform_info = {
 }
 
 build_args = {
-    "no-simd": os.getenv("QUICK_ALGO_NO_SIMD") == "1"
+    "with-simd": os.getenv("QUICK_ALGO_SIMD") == "1"
 }
 
 # 获取平台信息
@@ -48,7 +48,7 @@ def get_platform_info():
         print(f"CPU Flags: {cpu_info['flags']}")
     print(f"Detected Platform: {'ARM' if is_arm_platform else 'x86'}")
     
-    if not build_args["no-simd"]:
+    if build_args["with-simd"]:
         if is_arm_platform:
             # ARM平台上启用NEON，明确设置AVX2为False
             platform_info["avx2"] = False
