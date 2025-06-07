@@ -4,21 +4,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-sdist:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.10"]
-
+  build-wheel-linux:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.10
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.10"
           cache: 'pip'
 
       - name: Install build tools (Ubuntu)
@@ -28,17 +23,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install cython build setuptools py-cpuinfo wheel
+          pip install cython build setuptools py-cpuinfo wheel cibuildwheel
 
-      - name: Build source distribution
+      - name: Build wheels (manylinux)
         working-directory: lib/quick_algo
-        run: python ./build_lib.py --cleanup --cythonize --build_sdist
+        run: python -m cibuildwheel --output-dir dist
 
-      - name: Upload source distribution
+      - name: Upload wheel distribution
         uses: actions/upload-artifact@v4
         with:
-          name: sdist
-          path: lib/quick_algo/dist/*.tar.gz
+          name: wheel_manylinux
+          path: lib/quick_algo/dist/*.whl
 
   build-wheel:
     runs-on: ${{ matrix.os }}

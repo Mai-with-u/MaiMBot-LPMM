@@ -33,6 +33,7 @@ build = [
     "setuptools",
     "py-cpuinfo",
     "wheel",
+    "cibuildwheel",
 ]
 test = [
     "pytest",
@@ -45,5 +46,20 @@ test = [
 Homepage = "https://github.com/MaiM-with-u/MaiMBot-LPMM"
 Issues = "https://github.com/MaiM-with-u/MaiMBot-LPMM/issues"
 
+[tool.cibuildwheel]
+manylinux-x86_64-image = "manylinux2014"
+manylinux-aarch64-image = "manylinux2014"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
+
+[tool.cibuildwheel.linux]
+repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
+archs = ["x86_64", "aarch64"]
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+repair-wheel-command = [
+  "delocate-listdeps {wheel}",
+  "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} {wheel}",
+]
