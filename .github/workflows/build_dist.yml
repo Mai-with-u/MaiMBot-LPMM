@@ -21,6 +21,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential
 
+      - name: Set up QEMU for aarch64 cross-build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu qemu-user-static binfmt-support
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
       - name: Install dependencies
         run: |
           pip install cython build setuptools py-cpuinfo wheel cibuildwheel
