@@ -5,7 +5,10 @@ on:
 
 jobs:
   build-wheel-linux:
-    runs-on: ubuntu-latest
+    strategy:
+        matrix:
+          os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,12 +24,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential
 
-      - name: Set up QEMU for aarch64 cross-build
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-user-static binfmt-support
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
       - name: Install dependencies
         run: |
           pip install cython build setuptools py-cpuinfo wheel cibuildwheel
@@ -37,6 +34,8 @@ jobs:
 
       - name: Build wheels (manylinux)
         working-directory: lib/quick_algo
+        env:
+          CIBW_ARCHS: native
         run: python -m cibuildwheel --output-dir dist
 
       - name: Upload wheel distribution
