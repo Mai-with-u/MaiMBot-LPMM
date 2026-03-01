@@ -60,7 +60,7 @@ def get_compile_and_link_args():
 
 
 # 解析扩展模块主源文件：优先使用预生成的cpp，缺失时回退到pyx
-# 这样PyPI包无需依赖Cython，而本地源码开发仍可直接构建
+# 当包中包含预生成cpp时无需Cython，仅在回退pyx时才需要Cython
 def resolve_source_file(cpp_source, pyx_source):
     if Path(cpp_source).exists():
         return cpp_source, False
