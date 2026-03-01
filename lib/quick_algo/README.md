@@ -38,23 +38,28 @@
 - `--cleanup`：清理构建目录和临时文件
 - `--cythonize`：编译Cython代码（要求依赖`cython`）
 - `--force_cythonize`: 强制重新编译Cython代码（要求依赖`cython`）
-- `--build_dist`：构建Python包（要求依赖`setuptools`）
-- `--build_wheel`：构建Python wheel包（要求依赖`setuptools`, 要求C/Cpp编译环境）
+- `--build_sdist`：构建Python源码分发包（要求依赖`setuptools`）
+- `--build_wheel`：构建Python wheel包（要求依赖`setuptools`和C/Cpp编译环境；若无预生成`.cpp`，需先执行`--cythonize`）
 - `--install`：安装Python包（要求依赖`setuptools`, 要求C/Cpp编译环境）
 
 ## 安装
-您可以直接使用`pip install quick_algo`进行安装：
+您可以直接使用`pip install quick-algo`进行安装：
 ```bash
-pip install quick_algo
+pip install quick-algo
 ```
-> 注：PyPI上提供的二进制包默认不开启SIMD优化，您可以通过编译源码分发包来启用该特性
+> 注：PyPI上的预编译wheel默认不开启SIMD优化（兼容优先）。若您希望启用SIMD，可使用源码编译安装。
+
+当前PyPI wheel覆盖：
+- macOS Intel（x86_64）
+- macOS Apple Silicon（arm64）
+- Linux（x86_64 / aarch64）
+- Windows（x86_64）
 
 您也可以在clone本仓库之后通过前述构建脚本于本地进行编译安装。
 
 在编译安装之前，请确保您装有以下依赖：
 - `setuptools`: Python包管理工具
 - `Cython`: Cython编译器
-- `py-cpuinfo`: CPU信息获取库
 - `MSVC/GCC/Clang`: C/Cpp编译环境
 
 要使用脚本编译安装，请在项目目录下执行以下命令：
