@@ -20,7 +20,8 @@ platform_info = {
 }
 
 build_args = {
-    "with-simd": os.getenv("QUICK_ALGO_SIMD") == "1"
+    "with-simd": os.getenv("QUICK_ALGO_SIMD") == "1",
+    "force-avx2": os.getenv("QUICK_ALGO_AVX2") == "1",
 }
 
 
@@ -39,6 +40,20 @@ def is_arm_platform():
     )
 
 
+def supports_avx2():
+    """Best-effort AVX2 feature detection without hard dependency on py-cpuinfo."""
+    if build_args["force-avx2"]:
+        return True
+
+    try:
+        import cpuinfo  # type: ignore
+
+        flags = cpuinfo.get_cpu_info().get("flags", [])
+        return "avx2" in [flag.lower() for flag in flags]
+    except Exception:
+        return False
+
+
 # 生成构建参数
 def get_compile_and_link_args():
     compile_args = []
@@ -51,16 +66,24 @@ def get_compile_and_link_args():
         compile_args.append("-D__ARM_NEON__")
         return compile_args, link_args
 
-    if platform_info["os"] in ["Linux", "macOS"]:
-        compile_args.extend(["-mavx2", "-D__AVX2__"])
-    elif platform_info["os"] == "Windows":
-        compile_args.extend(["/arch:AVX2", "/D__AVX2__"])
+    avx2_enabled = supports_avx2()
+    if build_args["with-simd"] and not avx2_enabled:
+        print(
+            "QUICK_ALGO_SIMD=1 is set, but AVX2 is not detected on this host. "
+            "Building without AVX2 flags."
+        )
+
+    if avx2_enabled:
+        if platform_info["os"] in ["Linux", "macOS"]:
+            compile_args.extend(["-mavx2", "-D__AVX2__"])
+        elif platform_info["os"] == "Windows":
+            compile_args.extend(["/arch:AVX2", "/D__AVX2__"])
 
     return compile_args, link_args
 
 
 # 解析扩展模块主源文件：优先使用预生成的cpp，缺失时回退到pyx
-# 当包中包含预生成cpp时无需Cython，仅在回退pyx时才需要Cython
+# 为了兼容PEP 517隔离构建，build-system中已声明Cython；但仍优先使用预生成cpp
 def resolve_source_file(cpp_source, pyx_source):
     if Path(cpp_source).exists():
         return cpp_source, False

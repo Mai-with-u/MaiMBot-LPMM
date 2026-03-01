@@ -3,6 +3,7 @@ try:
 except ImportError:
     print("未找到quick_algo库，无法使用quick_algo算法")
     print("请先安装quick_algo库：pip install quick-algo")
+    raise SystemExit(1)
 
 
 import sys
