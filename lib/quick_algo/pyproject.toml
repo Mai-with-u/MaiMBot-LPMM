@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "py-cpuinfo"]
+requires = ["setuptools>=68", "wheel", "Cython>=3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "quick-algo"
 authors = [
     {name="Oct-autumn", email="octautumn2002@gmail.com"},
 ]
-version = "0.1.3"
+version = "0.1.4"
 description = "A fast and efficient algorithm library for LPMM"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,17 +23,18 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 
 [project.optional-dependencies]
 build = [
-    "cython",
     "build",
-    "setuptools",
-    "py-cpuinfo",
-    "wheel",
     "cibuildwheel",
+    "cython",
+    "py-cpuinfo",
+    "setuptools",
+    "wheel",
 ]
 test = [
     "pytest",
@@ -47,6 +48,7 @@ Homepage = "https://github.com/MaiM-with-u/MaiMBot-LPMM"
 Issues = "https://github.com/MaiM-with-u/MaiMBot-LPMM/issues"
 
 [tool.cibuildwheel]
+build-verbosity = 1
 manylinux-x86_64-image = "manylinux2014"
 manylinux-aarch64-image = "manylinux2014"
 
@@ -63,3 +65,6 @@ repair-wheel-command = [
   "delocate-listdeps {wheel}",
   "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} {wheel}",
 ]
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]

@@ -9,3 +9,8 @@
  - 取消OpenMP需求
  - SIMD优化
  - 构建脚本优化
+
+# v0.1.4
+ - 修复macOS安装时的构建崩溃问题（去除对 `cpuinfo['flags']` 的硬依赖）
+ - 安装构建流程支持在缺失预生成 `.cpp` 时自动回退到 `.pyx`（无需手动预编译）
+ - 新增macOS wheel构建与发布流程，覆盖Intel（x86_64）和Apple Silicon（arm64）
