@@ -1,6 +1,7 @@
 # 若lib/quick_algo目录下有文件被修改，则运行pytest
 name: QuickAlgo CI
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'lib/quick_algo/**'
@@ -13,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-14]
         python-version: ["3.10"]
 
     steps:
@@ -26,17 +27,15 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
-      - name: Install build tools (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install build tools (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential
-
       - name: Ensure MSVC Build Tools (Windows)
-        if: matrix.os == 'windows-latest'
+        if: runner.os == 'Windows'
         run: |
           echo "MSVC tools will be automatically available on windows-latest"
-
       - name: Install dependencies
         run: |
           pip install cython build setuptools py-cpuinfo wheel pytest numpy scipy networkx
