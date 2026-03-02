@@ -1,3 +1,5 @@
 prune tests
-recursive-include src/quick_algo *.cpp *.hpp *.pxd *.pyx *.pyi
+graft src/quick_algo/cpp
+include src/quick_algo/di_graph.pyi
+include src/quick_algo/pagerank.pyi
 include CHANGELOG.md
